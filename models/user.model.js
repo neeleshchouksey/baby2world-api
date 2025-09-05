@@ -33,6 +33,13 @@ const UserSchema = new mongoose.Schema({
     default: 'user',
   },
   
+  // --- ADDED FOR FAVORITE NAMES ---
+  favorites: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Name' // This creates a reference to documents in the 'Name' collection
+  }]
+  // ---------------------------------
+  
 }, { timestamps: true });
 
 // Password ko save karne se pehle hash karna

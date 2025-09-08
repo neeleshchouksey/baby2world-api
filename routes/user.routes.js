@@ -1,18 +1,27 @@
 const express = require('express');
 const router = express.Router();
-const { getFavorites, toggleFavorite } = require('../controllers/user.controller');
-const verifyToken = require('../middleware/verifyToken');
 
-// This is a professional way to protect all routes in this file.
-// The verifyToken middleware will run for every request to /favorites.
-router.use(verifyToken);
+// 1. POORA CONTROLLER OBJECT IMPORT KAREIN (YAHI SABSE IMPORTANT HAI)
+const userController = require('../controllers/user.controller');
+
+// 2. Authentication middleware import karein
+const auth = require('../middleware/auth.middleware');
+
+// Yeh ek test route hai debugging ke liye
+router.get('/test', (req, res) => {
+  res.send('USER ROUTE TEST OK! File is now working!');
+});
 
 // Route to get all favorite names for the logged-in user
-// Full URL will be: GET http://localhost:PORT/api/user/favorites
-router.get('/favorites', getFavorites);
+// Ab hum har function ko 'userController.' ke saath call karenge
+router.get('/favorites', auth, userController.getFavorites);
 
-// Route to add or remove a favorite name
-// Full URL will be: POST http://localhost:PORT/api/user/favorites/60d21b4667d0d8992e610c85
-router.post('/favorites/:nameId', toggleFavorite);
+// Route to add or remove a regular favorite name
+router.post('/favorites/:nameId', auth, userController.toggleFavorite);
+router.get('/favorites/godnames', auth, userController.getGodNameFavorites);
+// Route for God Name favorites - ab yeh bhi crash nahi hoga
+router.post('/favorites/godnames/:godNameId', auth, userController.toggleGodNameFavorite);
+router.get('/favorites/nicknames', auth, userController.getNicknameFavorites);
+router.post('/favorites/nicknames/:nicknameId', auth, userController.toggleNicknameFavorite);
 
 module.exports = router;

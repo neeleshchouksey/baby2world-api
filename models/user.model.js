@@ -37,7 +37,16 @@ const UserSchema = new mongoose.Schema({
   favorites: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Name' // This creates a reference to documents in the 'Name' collection
-  }]
+  }],
+  godNameFavorites: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'GodName' // Yeh naam aapke godName model se match hona chahiye
+  }],
+  
+  nicknameFavorites: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Nickname'
+  }],
   // ---------------------------------
   
 }, { timestamps: true });

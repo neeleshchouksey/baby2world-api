@@ -7,6 +7,7 @@ const session = require('express-session');
 const nameRoutes = require('./routes/name.routes');
 const godNameRoutes = require('./routes/godName.routes');
 const userRoutes = require('./routes/user.routes')
+const nicknameRoutes = require('./routes/nickname.routes');
 require('dotenv').config();
 
 // Passport Config (yeh line passport-setup.js file ko execute karti hai)
@@ -52,6 +53,7 @@ app.use('/api/religions', religionRoutes);
 app.use('/api/names', nameRoutes);
 app.use('/api/godnames', godNameRoutes);
 app.use('/api/user', userRoutes);
+app.use('/api/nicknames', nicknameRoutes);
 // Test route to check if server is running
 app.get('/', (req, res) => {
   res.json({ message: 'Server is running!' });

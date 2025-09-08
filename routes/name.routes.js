@@ -9,7 +9,7 @@ const verifyToken = require('../middleware/verifyToken'); // मैंने aut
 router.get('/', async (req, res) => {
   try {
     // --- Step 1: Get Filters and Pagination Options from Frontend ---
-    const { gender, letter, religionId } = req.query;
+    const { gender, letter, religionId, search} = req.query;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 15;
 
@@ -22,13 +22,18 @@ router.get('/', async (req, res) => {
     }
     
     // Letter filter (checks if the name starts with the given letter, case-insensitive)
-    if (letter) {
-      filterQuery.name = { $regex: `^${letter}`, $options: 'i' };
-    }
+   
     
     // Religion filter
     if (religionId) {
       filterQuery.religionId = religionId;
+    }
+
+    if (search){
+      filterQuery.name={ $regex: search, $options:'i'};
+    }
+    else if(letter){
+      filterQuery.name={ $regex: `^${letter}`, $options: 'i'}
     }
     
     // --- Step 3: Fetch Data from Database ---

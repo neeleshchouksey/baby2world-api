@@ -132,6 +132,8 @@ router.delete('/:id', verifyToken, async (req, res) => {
     res.status(500).json({ success: false, error: 'Error deleting name' });
   }
 });
+// backend/routes/nameRoutes.js mein ye add karo
+
 
 
 // IMPORTANT: The routes below are now handled by the main GET '/' route.

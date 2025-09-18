@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Name = require('../models/name.model');
-const verifyToken = require('../middleware/verifyToken'); // मैंने authMiddleware को verifyToken से बदल दिया है, जैसा हमने पहले डिस्कस किया था।
+const verifyToken = require('../middleware/verifytoken'); // मैंने authMiddleware को verifyToken से बदल दिया है, जैसा हमने पहले डिस्कस किया था।
 
 //================================================================
 // MAIN ROUTE TO GET ALL NAMES (WITH FILTERS AND PAGINATION)

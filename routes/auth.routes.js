@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 
 // Controllers aur Middleware
 const { adminLogin, userLogin, changePassword } = require('../controllers/auth.controller');
-const verifyToken = require('../middleware/verifyToken');
+const verifyToken = require('../middleware/verifytoken');
 
 // --- IMPORTANT: User model ko yahan import karna zaroori hai ---
 const User = require('../models/user.model'); 

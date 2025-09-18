@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const godNameController = require('../controllers/godName.controller');
+const godNameController = require('../controllers/godname.controller');
 const auth = require('../middleware/auth.middleware');
 
 // Public routes

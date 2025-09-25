@@ -5,17 +5,14 @@ const User = require('../models/user.model');
 const getAllNicknames = async (req, res) => {
   try {
     const { search } = req.query;
-    let filterQuery = { isActive: true };
+    const filterQuery = { isActive: true };
     
     // Search functionality
     if (search) {
-      filterQuery.name = { $regex: search, $options: 'i' };
+      filterQuery.name = { $regex: `%${search}%` };
     }
     
-    const nicknames = await Nickname.find(filterQuery)
-      .populate('createdBy', 'name email')
-      .populate('updatedBy', 'name email')
-      .sort({ name: 1 });
+    const nicknames = await Nickname.find(filterQuery, { sort: { name: 1 } });
     
     res.json({
       success: true,
@@ -34,9 +31,7 @@ const getAllNicknames = async (req, res) => {
 // Get single nickname by ID
 const getNicknameById = async (req, res) => {
   try {
-    const nickname = await Nickname.findById(req.params.id)
-      .populate('createdBy', 'name email')
-      .populate('updatedBy', 'name email');
+    const nickname = await Nickname.findById(req.params.id);
     
     if (!nickname || !nickname.isActive) {
       return res.status(404).json({ 
@@ -82,7 +77,7 @@ const createNickname = async (req, res) => {
 
     // Check if nickname already exists (case insensitive)
     const existingNickname = await Nickname.findOne({ 
-      name: { $regex: new RegExp(`^${name.trim()}$`, 'i') } 
+      name: { $regex: name.trim() }
     });
 
     if (existingNickname) {
@@ -110,13 +105,11 @@ const createNickname = async (req, res) => {
     }
 
     // Create new nickname
-    const newNickname = new Nickname({
+    const newNickname = await Nickname.create({
       name: name.trim(),
       description: description || '',
       createdBy: req.user.id
     });
-
-    await newNickname.save();
     
     // Populate creator info before sending response
     await newNickname.populate('createdBy', 'name email');
@@ -168,11 +161,12 @@ const updateNickname = async (req, res) => {
     }
 
     // Check if new name conflicts with another nickname
-    const duplicateNickname = await Nickname.findOne({
-      _id: { $ne: nicknameId },
-      name: { $regex: new RegExp(`^${name.trim()}$`, 'i') },
-      isActive: true
+    const possibleDuplicates = await Nickname.find({
+      isActive: true,
+      name: { $regex: name.trim() }
     });
+
+    const duplicateNickname = possibleDuplicates.find(n => String(n.id) !== String(nicknameId));
 
     if (duplicateNickname) {
       return res.status(400).json({ 

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const verifyToken = require('../middleware/verifytoken');
+const auth = require('../middleware/auth.middleware');
 const {
   getAllReligions,
   getReligionById,
@@ -14,8 +14,8 @@ router.get('/', getAllReligions);
 router.get('/:id', getReligionById);
 
 // Protected routes (sirf logged in admin)
-router.post('/', verifyToken, createReligion);
-router.put('/:id', verifyToken, updateReligion);
-router.delete('/:id', verifyToken, deleteReligion);
+router.post('/', auth, createReligion);
+router.put('/:id', auth, updateReligion);
+router.delete('/:id', auth, deleteReligion);
 
 module.exports = router;

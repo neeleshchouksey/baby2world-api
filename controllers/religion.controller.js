@@ -4,11 +4,8 @@ const User = require('../models/user.model');
 // Get all religions
 const getAllReligions = async (req, res) => {
   try {
-    const religions = await Religion.find({ isActive: true })
-      .populate('createdBy', 'name email')
-      .populate('updatedBy', 'name email')
-      .sort({ name: 1 });
-    
+    const religions = await Religion.find({ isActive: true }, { sort: { name: 1 } });
+
     res.json({
       success: true,
       count: religions.length,
@@ -26,9 +23,7 @@ const getAllReligions = async (req, res) => {
 // Get single religion by ID
 const getReligionById = async (req, res) => {
   try {
-    const religion = await Religion.findById(req.params.id)
-      .populate('createdBy', 'name email')
-      .populate('updatedBy', 'name email');
+    const religion = await Religion.findById(req.params.id);
     
     if (!religion || !religion.isActive) {
       return res.status(404).json({ 
@@ -74,7 +69,7 @@ const createReligion = async (req, res) => {
 
     // Check if religion already exists (case insensitive)
     const existingReligion = await Religion.findOne({ 
-      name: { $regex: new RegExp(`^${name.trim()}$`, 'i') } 
+      name: { $regex: name.trim() }
     });
 
     if (existingReligion) {
@@ -101,12 +96,10 @@ const createReligion = async (req, res) => {
     }
 
     // Create new religion
-    const newReligion = new Religion({
+    const newReligion = await Religion.create({
       name: name.trim(),
       createdBy: req.user.id
     });
-
-    await newReligion.save();
     
     // Populate creator info before sending response
     await newReligion.populate('createdBy', 'name email');
@@ -158,11 +151,12 @@ const updateReligion = async (req, res) => {
     }
 
     // Check if new name conflicts with another religion
-    const duplicateReligion = await Religion.findOne({
-      _id: { $ne: religionId },
-      name: { $regex: new RegExp(`^${name.trim()}$`, 'i') },
-      isActive: true
+    const possibleDuplicates = await Religion.find({
+      isActive: true,
+      name: { $regex: name.trim() }
     });
+
+    const duplicateReligion = possibleDuplicates.find(r => String(r.id) !== String(religionId));
 
     if (duplicateReligion) {
       return res.status(400).json({ 

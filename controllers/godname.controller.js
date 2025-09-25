@@ -3,10 +3,7 @@ const GodName = require('../models/godname.model');
 // Get all god names
 exports.getAllGodNames = async (req, res) => {
   try {
-    const godNames = await GodName.find()
-      .populate('religionId', 'name')
-      .sort({ name: 1 });
-    
+    const godNames = await GodName.find({}, { sort: { name: 1 } });
     res.json({
       success: true,
       data: godNames
@@ -22,8 +19,7 @@ exports.getAllGodNames = async (req, res) => {
 // Get single god name by ID
 exports.getGodNameById = async (req, res) => {
   try {
-    const godName = await GodName.findById(req.params.id)
-      .populate('religionId', 'name');
+    const godName = await GodName.findById(req.params.id);
     
     if (!godName) {
       return res.status(404).json({
@@ -49,9 +45,9 @@ exports.createGodName = async (req, res) => {
   try {
     const { name, description, religionId, subNames } = req.body;
     
-    // Check if god name already exists
+    // Check if god name already exists (case-insensitive per religion)
     const existingGod = await GodName.findOne({ 
-      name: { $regex: new RegExp(`^${name}$`, 'i') },
+      name: { $regex: `^${name}$` },
       religionId 
     });
     
@@ -62,16 +58,13 @@ exports.createGodName = async (req, res) => {
       });
     }
     
-    const newGodName = new GodName({
+    const savedGodName = await GodName.create({
       name,
       description,
       religionId,
-      subNames: subNames || [],
-      createdBy: req.userId
+      subNames: Array.isArray(subNames) ? subNames : [],
+      createdBy: req.userId || (req.user && (req.user.id || req.user.userId))
     });
-    
-    const savedGodName = await newGodName.save();
-    await savedGodName.populate('religionId', 'name');
     
     res.status(201).json({
       success: true,
@@ -93,9 +86,8 @@ exports.updateGodName = async (req, res) => {
     
     const updatedGodName = await GodName.findByIdAndUpdate(
       req.params.id,
-      { name, description, religionId, subNames },
-      { new: true, runValidators: true }
-    ).populate('religionId', 'name');
+      { name, description, religionId, subNames }
+    );
     
     if (!updatedGodName) {
       return res.status(404).json({
@@ -155,15 +147,7 @@ exports.addSubName = async (req, res) => {
       });
     }
     
-    if (godName.subNames.includes(subName)) {
-      return res.status(400).json({
-        success: false,
-        error: 'Sub name already exists'
-      });
-    }
-    
-    godName.subNames.push(subName);
-    await godName.save();
+    await godName.addSubName(subName);
     
     res.json({
       success: true,
@@ -192,8 +176,7 @@ exports.removeSubName = async (req, res) => {
       });
     }
     
-    godName.subNames = godName.subNames.filter(name => name !== subName);
-    await godName.save();
+    await godName.removeSubName(subName);
     
     res.json({
       success: true,

@@ -1,5 +1,5 @@
 const express = require('express');
-const mongoose = require('mongoose');
+const { query } = require('./config/database');
 const cors = require('cors');
 const passport = require('passport');
 const religionRoutes = require('./routes/religion.routes');
@@ -42,10 +42,10 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
-// MongoDB se Connection
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('MongoDB connected successfully.'))
-  .catch(err => console.error('MongoDB connection error:', err));
+// PostgreSQL Connection Test
+query('SELECT NOW()')
+  .then(() => console.log('PostgreSQL connected successfully.'))
+  .catch(err => console.error('PostgreSQL connection error:', err));
 
 // API Routes
 app.use('/api/auth', authRoutes);

@@ -1,7 +1,6 @@
 const User = require('../models/user.model');
 const Name = require('../models/name.model');
-const mongoose = require('mongoose');
-const NickName= require('../models/nickname.model')
+const NickName = require('../models/nickname.model');
 /**
  * @desc    Get the logged-in user's list of favorite names
  * @route   GET /api/user/favorites
@@ -10,24 +9,17 @@ const NickName= require('../models/nickname.model')
 exports.getFavorites = async (req, res) => {
   try {
     // req.user.id is attached by your verifyToken middleware
-    const user = await User.findById(req.user.id)
-      .populate({
-        path: 'favorites', // The 'favorites' field in the User model
-        model: 'Name',     // The model we are referencing
-        populate: {
-          path: 'religionId', // Nested populate for religion details
-          model: 'Religion',
-          select: 'name'      // We only need the name of the religion
-        }
-      });
+    const user = await User.findById(req.user.id);
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
+    const favorites = await user.getFavorites();
+
     res.status(200).json({
       success: true,
-      data: user.favorites
+      data: favorites
     });
   } catch (error) {
     console.error("Error fetching favorites:", error);
@@ -44,8 +36,9 @@ exports.toggleFavorite = async (req, res) => {
   try {
     const { nameId } = req.params;
 
-    // 1. Validate the Name ID format
-    if (!mongoose.Types.ObjectId.isValid(nameId)) {
+    // 1. Validate the Name ID format (UUID format)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(nameId)) {
       return res.status(400).json({ success: false, message: 'Invalid Name ID format' });
     }
 
@@ -62,28 +55,26 @@ exports.toggleFavorite = async (req, res) => {
     }
 
     // 4. Check if the name is already in the user's favorites
-    const isFavorite = user.favorites.includes(nameId);
-    let updateOperation;
+    const isFavorite = await user.hasFavoriteName(nameId);
     let message;
 
     if (isFavorite) {
-      // If it's already a favorite, use $pull to remove it from the array
-      updateOperation = { $pull: { favorites: nameId } };
+      // If it's already a favorite, remove it
+      await User.findByIdAndUpdate(req.user.id, { $pull: { favorites: nameId } });
       message = 'Removed from favorites successfully';
     } else {
-      // If it's not a favorite, use $addToSet to add it (this prevents duplicates)
-      updateOperation = { $addToSet: { favorites: nameId } };
+      // If it's not a favorite, add it
+      await User.findByIdAndUpdate(req.user.id, { $addToSet: { favorites: nameId } });
       message = 'Added to favorites successfully';
     }
 
-    // 5. Perform the update operation on the database
-    const updatedUser = await User.findByIdAndUpdate(req.user.id, updateOperation, { new: true });
+    // 5. Get updated favorites
+    const updatedFavorites = await user.getFavorites();
 
     res.status(200).json({
       success: true,
       message: message,
-      // Return the updated list of favorite IDs for the frontend to sync
-      data: updatedUser.favorites
+      data: updatedFavorites
     });
 
   } catch (error) {
@@ -94,24 +85,17 @@ exports.toggleFavorite = async (req, res) => {
 // user.controller.js mein sirf is function ko replace karein
 exports.getGodNameFavorites = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id)
-      .populate({
-        path: 'godNameFavorites', // Is baar 'godNameFavorites' ko populate karenge
-        model: 'GodName',         // GodName model se
-        populate: {
-          path: 'religionId',     // Uske andar religionId ko bhi
-          model: 'Religion',
-          select: 'name'
-        }
-      });
+    const user = await User.findById(req.user.id);
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
+    const godNameFavorites = await user.getGodNameFavorites();
+
     res.status(200).json({
       success: true,
-      data: user.godNameFavorites
+      data: godNameFavorites
     });
   } catch (error) {
     console.error("Error fetching god name favorites:", error);
@@ -120,33 +104,48 @@ exports.getGodNameFavorites = async (req, res) => {
 };
 exports.toggleGodNameFavorite = async (req, res) => {
   try {
-    // 1. User ko uski ID se dhoondo (YAHAN CHANGE HUA HAI)
-    const user = await User.findById(req.user.id); // req.userId ki jagah req.user.id
     const { godNameId } = req.params;
+
+    // 1. Validate the God Name ID format (UUID format)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(godNameId)) {
+      return res.status(400).json({ success: false, message: 'Invalid God Name ID format' });
+    }
+
+    const user = await User.findById(req.user.id);
 
     if (!user) {
       return res.status(404).json({ success: false, error: 'User not found' });
     }
 
-    // 2. Check karo ki God Name pehle se favorite hai ya nahi
-    const index = user.godNameFavorites.indexOf(godNameId);
-
-    if (index > -1) {
-      // Agar hai, to array se nikal do (un-favorite)
-      user.godNameFavorites.splice(index, 1);
-    } else {
-      // Agar nahi hai, to array mein daal do (favorite)
-      user.godNameFavorites.push(godNameId);
+    // 2. Check if God Name exists
+    const GodName = require('../models/godname.model');
+    const godNameExists = await GodName.findById(godNameId);
+    if (!godNameExists) {
+      return res.status(404).json({ success: false, message: 'The specified god name does not exist' });
     }
 
-    // 3. User ke changes ko database mein save karo
-    const updatedUser = await user.save();
+    // 3. Check if God Name is already in favorites
+    const isFavorite = await user.hasFavoriteGodName(godNameId);
+    let message;
+
+    if (isFavorite) {
+      // If it's already a favorite, remove it
+      await User.findByIdAndUpdate(req.user.id, { $pull: { godNameFavorites: godNameId } });
+      message = 'Removed from god name favorites successfully';
+    } else {
+      // If it's not a favorite, add it
+      await User.findByIdAndUpdate(req.user.id, { $addToSet: { godNameFavorites: godNameId } });
+      message = 'Added to god name favorites successfully';
+    }
+
+    // 4. Get updated god name favorites
+    const updatedGodNameFavorites = await user.getGodNameFavorites();
     
-    // 4. Frontend ko updated user data wapas bhejo
     res.json({
       success: true,
-      message: 'God name favorites updated successfully.',
-      data: updatedUser // Yeh frontend par localStorage update karne ke kaam aayega
+      message: message,
+      data: updatedGodNameFavorites
     });
 
   } catch (error) {
@@ -164,19 +163,17 @@ exports.toggleGodNameFavorite = async (req, res) => {
  */
 exports.getNicknameFavorites = async (req, res) => {
   try {
-    const user = await User.findById(req.user.id)
-      .populate({
-        path: 'nicknameFavorites', 
-        model: 'Nickname'
-      });
+    const user = await User.findById(req.user.id);
 
     if (!user) {
       return res.status(404).json({ success: false, message: 'User not found' });
     }
 
+    const nicknameFavorites = await user.getNicknameFavorites();
+
     res.status(200).json({
       success: true,
-      data: user.nicknameFavorites
+      data: nicknameFavorites
     });
   } catch (error) {
     console.error("Error fetching nickname favorites:", error);
@@ -193,8 +190,9 @@ exports.toggleNicknameFavorite = async (req, res) => {
   try {
     const { nicknameId } = req.params;
 
-    // 1. Validate the Nickname ID format
-    if (!mongoose.Types.ObjectId.isValid(nicknameId)) {
+    // 1. Validate the Nickname ID format (UUID format)
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(nicknameId)) {
       return res.status(400).json({ success: false, message: 'Invalid Nickname ID format' });
     }
 
@@ -205,38 +203,32 @@ exports.toggleNicknameFavorite = async (req, res) => {
     }
 
     // 3. Check if the nickname actually exists in the database
-    const Nickname = require('../models/nickname.model'); // Import Nickname model
-    const nicknameExists = await Nickname.findById(nicknameId);
+    const nicknameExists = await NickName.findById(nicknameId);
     if (!nicknameExists) {
       return res.status(404).json({ success: false, message: 'The specified nickname does not exist' });
     }
 
     // 4. Check if the nickname is already in the user's favorites
-    const isFavorite = user.nicknameFavorites.includes(nicknameId);
-    let updateOperation;
+    const isFavorite = await user.hasFavoriteNickname(nicknameId);
     let message;
 
     if (isFavorite) {
-      // If it's already a favorite, use $pull to remove it from the array
-      updateOperation = { $pull: { nicknameFavorites: nicknameId } };
+      // If it's already a favorite, remove it
+      await User.findByIdAndUpdate(req.user.id, { $pull: { nicknameFavorites: nicknameId } });
       message = 'Removed from nickname favorites successfully';
     } else {
-      // If it's not a favorite, use $addToSet to add it (this prevents duplicates)
-      updateOperation = { $addToSet: { nicknameFavorites: nicknameId } };
+      // If it's not a favorite, add it
+      await User.findByIdAndUpdate(req.user.id, { $addToSet: { nicknameFavorites: nicknameId } });
       message = 'Added to nickname favorites successfully';
     }
 
-    // 5. Perform the update operation on the database
-    const updatedUser = await User.findByIdAndUpdate(
-      req.user.id, 
-      updateOperation, 
-      { new: true }
-    );
+    // 5. Get updated nickname favorites
+    const updatedNicknameFavorites = await user.getNicknameFavorites();
 
     res.status(200).json({
       success: true,
       message: message,
-      data: updatedUser // Return full user object for localStorage update
+      data: updatedNicknameFavorites
     });
 
   } catch (error) {

@@ -1,7 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const Name = require('../models/name.model');
-const verifyToken = require('../middleware/verifytoken'); // मैंने authMiddleware को verifyToken से बदल दिया है, जैसा हमने पहले डिस्कस किया था।
+const Religion = require('../models/religion.model');
+const auth = require('../middleware/auth.middleware');
 
 //================================================================
 // MAIN ROUTE TO GET ALL NAMES (WITH FILTERS AND PAGINATION)
@@ -13,27 +14,40 @@ router.get('/', async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 15;
 
-    // --- Step 2: Build the Filter Query for MongoDB ---
+    // --- Step 2: Build the Filter Query for PostgreSQL ---
     let filterQuery = {};
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     
     // Gender filter
     if (gender) {
       filterQuery.gender = gender.toLowerCase();
     }
     
-    // Letter filter (checks if the name starts with the given letter, case-insensitive)
-   
-    
-    // Religion filter
+    // Religion filter: accept either UUID or name (case-insensitive)
     if (religionId) {
-      filterQuery.religionId = religionId;
+      if (uuidRegex.test(religionId)) {
+        filterQuery.religionId = religionId;
+      } else {
+        // Try resolving by religion name → id
+        try {
+          const religion = await Religion.findOne({ name: { $regex: `%${religionId}%` }, isActive: true });
+          if (religion) {
+            filterQuery.religionId = religion.id;
+          } else {
+            // If no religion found by name, avoid setting an invalid UUID filter
+            filterQuery.religionId = undefined;
+          }
+        } catch (_) {
+          // Ignore lookup errors; proceed without religion filter
+        }
+      }
     }
 
     if (search){
-      filterQuery.name={ $regex: search, $options:'i'};
+      filterQuery.name = { $regex: `%${search}%` };
     }
     else if(letter){
-      filterQuery.name={ $regex: `^${letter}`, $options: 'i'}
+      filterQuery.name = { $regex: `${letter}%` };
     }
     
     // --- Step 3: Fetch Data from Database ---
@@ -45,11 +59,11 @@ router.get('/', async (req, res) => {
     const totalPages = Math.ceil(totalNames / limit);
     
     // Finally, find the names for the current page
-    const names = await Name.find(filterQuery)
-      .populate('religionId', 'name')
-      .sort({ name: 1 }) // Sort by name alphabetically
-      .skip((page - 1) * limit) // Skip names from previous pages
-      .limit(limit); // Get only 'limit' number of names (e.g., 15)
+    const names = await Name.find(filterQuery, {
+      page: page,
+      limit: limit,
+      sort: { name: 1 }
+    });
     
     // --- Step 4: Send the Final Response to Frontend ---
     res.json({
@@ -76,7 +90,7 @@ router.get('/', async (req, res) => {
 // Get single name by ID
 router.get('/:id', async (req, res) => {
   try {
-    const name = await Name.findById(req.params.id).populate('religionId', 'name');
+    const name = await Name.findById(req.params.id);
     if (!name) {
       return res.status(404).json({ success: false, error: 'Name not found' });
     }
@@ -87,15 +101,14 @@ router.get('/:id', async (req, res) => {
 });
 
 // Create new name (protected route)
-router.post('/', verifyToken, async (req, res) => {
+router.post('/', auth, async (req, res) => {
   try {
     const { name, description, religionId, gender } = req.body;
-    const existingName = await Name.findOne({ name: new RegExp(`^${name}$`, 'i') }); // Case-insensitive check
+    const existingName = await Name.findOne({ name: { $regex: `^${name}$` } }); // Case-insensitive check
     if (existingName) {
       return res.status(400).json({ success: false, error: 'Name already exists' });
     }
     const newName = await Name.create({ name, description, religionId, gender });
-    await newName.populate('religionId', 'name');
     res.status(201).json({ success: true, message: 'Name added successfully', data: newName });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message || 'Error creating name' });
@@ -103,14 +116,14 @@ router.post('/', verifyToken, async (req, res) => {
 });
 
 // Update name (protected route)
-router.put('/:id', verifyToken, async (req, res) => {
+router.put('/:id', auth, async (req, res) => {
   try {
     const { name, description, religionId, gender } = req.body;
     const updatedName = await Name.findByIdAndUpdate(
       req.params.id,
       { name, description, religionId, gender },
-      { new: true, runValidators: true }
-    ).populate('religionId', 'name');
+      { new: true }
+    );
     if (!updatedName) {
       return res.status(404).json({ success: false, error: 'Name not found' });
     }
@@ -121,7 +134,7 @@ router.put('/:id', verifyToken, async (req, res) => {
 });
 
 // Delete name (protected route)
-router.delete('/:id', verifyToken, async (req, res) => {
+router.delete('/:id', auth, async (req, res) => {
   try {
     const name = await Name.findByIdAndDelete(req.params.id);
     if (!name) {

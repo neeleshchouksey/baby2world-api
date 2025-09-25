@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const verifyToken = require('../middleware/verifytoken');
+const auth = require('../middleware/auth.middleware');
 const {
   getAllNicknames,
   getNicknameById,
@@ -14,8 +14,8 @@ router.get('/', getAllNicknames);
 router.get('/:id', getNicknameById);
 
 // Protected routes (admin only)
-router.post('/', verifyToken, createNickname);
-router.put('/:id', verifyToken, updateNickname);
-router.delete('/:id', verifyToken, deleteNickname);
+router.post('/', auth, createNickname);
+router.put('/:id', auth, updateNickname);
+router.delete('/:id', auth, deleteNickname);
 
 module.exports = router;

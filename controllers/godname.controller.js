@@ -47,7 +47,7 @@ exports.createGodName = async (req, res) => {
     
     // Check if god name already exists (case-insensitive per religion)
     const existingGod = await GodName.findOne({ 
-      name: { $regex: `^${name}$` },
+      name: { $regex: `%${name}%` },
       religionId 
     });
     

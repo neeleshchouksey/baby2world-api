@@ -1,4 +1,13 @@
 {
+  "name": "babyname-backend",
+  "version": "1.0.0",
+  "description": "Baby Name Backend API",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "body-parser": "^2.2.0",

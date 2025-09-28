@@ -5,7 +5,7 @@ const passport = require('passport');
 const religionRoutes = require('./routes/religion.routes');
 const session = require('express-session');
 const nameRoutes = require('./routes/name.routes');
-const godNameRoutes = require('./routes/godName.routes');
+const godNameRoutes = require('./routes/godname.routes');
 const userRoutes = require('./routes/user.routes')
 const nicknameRoutes = require('./routes/nickname.routes');
 require('dotenv').config();
@@ -18,12 +18,16 @@ const authRoutes = require('./routes/auth.routes');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// CORS Configuration - Yaha changes kiye hain
+// CORS Configuration - Allow both localhost and production
 app.use(cors({
-  origin: 'http://localhost:3000', // React app ka URL
+  origin: [
+    'http://localhost:3000', 
+    'https://baby2world.com', 
+    'http://baby2world.com'
+  ],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
 
 // Middleware
@@ -51,7 +55,7 @@ query('SELECT NOW()')
 app.use('/api/auth', authRoutes);
 app.use('/api/religions', religionRoutes);
 app.use('/api/names', nameRoutes);
-app.use('/api/godnames', godNameRoutes);
+app.use('/api/god-names', godNameRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/nicknames', nicknameRoutes);
 // Test route to check if server is running

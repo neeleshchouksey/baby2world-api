@@ -18,9 +18,9 @@ router.get('/favorites', auth, userController.getFavorites);
 
 // Route to add or remove a regular favorite name
 router.post('/favorites/:nameId', auth, userController.toggleFavorite);
-router.get('/favorites/godnames', auth, userController.getGodNameFavorites);
+router.get('/favorites/god-names', auth, userController.getGodNameFavorites);
 // Route for God Name favorites - ab yeh bhi crash nahi hoga
-router.post('/favorites/godnames/:godNameId', auth, userController.toggleGodNameFavorite);
+router.post('/favorites/god-names/:godNameId', auth, userController.toggleGodNameFavorite);
 router.get('/favorites/nicknames', auth, userController.getNicknameFavorites);
 router.post('/favorites/nicknames/:nicknameId', auth, userController.toggleNicknameFavorite);
 

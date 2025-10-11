@@ -1,28 +1,34 @@
 const { Pool } = require('pg');
+const config = require('./environment');
 require('dotenv').config();
 
 // Prefer DATABASE_URL if provided (e.g., on Render/Heroku/vercel)
 const DATABASE_URL = process.env.DATABASE_URL;
 
-// Load individual params for local/dev if DATABASE_URL not set
-const rawHost = process.env.PGHOST || process.env.DB_HOST || 'localhost';
-const rawUser = process.env.PGUSER || process.env.DB_USER || 'postgres';
-const rawPass = process.env.PGPASSWORD || process.env.DB_PASSWORD || '';
-const rawPort = process.env.PGPORT || process.env.DB_PORT || process.env.DB_Port || '5432';
-const rawName = process.env.PGDATABASE || process.env.DB_NAME || 'babynames_db';
+// Use environment config if DATABASE_URL not set
+const DB_HOST = config.database.host;
+const DB_USER = config.database.user;
+const DB_PASS = config.database.password;
+const DB_PORT = config.database.port;
+const DB_NAME = config.database.database;
+const DB_SSL = config.database.ssl;
 
-const DB_HOST = String(rawHost).trim();
-const DB_USER = String(rawUser).trim();
-const DB_PASS = String(rawPass).trim();
-const DB_PORT = parseInt(String(rawPort).trim(), 10);
-const DB_NAME = String(rawName).trim();
+// Debug database configuration
+if (config.debug) {
+  console.log('🔧 Database Configuration:', {
+    environment: config.environment,
+    host: DB_HOST,
+    port: DB_PORT,
+    user: DB_USER,
+    database: DB_NAME,
+    ssl: DB_SSL,
+    hasPassword: !!DB_PASS
+  });
+}
 
 function buildSslConfig() {
-  const isProduction = process.env.NODE_ENV === 'production';
-  const sslEnabled = process.env.PGSSL === 'true' || process.env.PGSSLMODE === 'require' || isProduction;
-  if (!sslEnabled) return undefined;
-  const rejectUnauthorized = process.env.PGSSL_REJECT_UNAUTHORIZED === 'false' ? false : true;
-  return { rejectUnauthorized };
+  // Use SSL configuration from environment
+  return DB_SSL;
 }
 
 function createPool(databaseName) {

@@ -8,6 +8,7 @@ const nameRoutes = require('./routes/name.routes');
 const godNameRoutes = require('./routes/godname.routes');
 const userRoutes = require('./routes/user.routes')
 const nicknameRoutes = require('./routes/nickname.routes');
+const config = require('./config/environment');
 require('dotenv').config();
 
 // Passport Config (yeh line passport-setup.js file ko execute karti hai)
@@ -16,16 +17,13 @@ require('./config/passport-setup');
 const authRoutes = require('./routes/auth.routes');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = config.server.port;
+const HOST = config.server.host;
 
-// CORS Configuration - Allow both localhost and production
+// CORS Configuration - Environment based
 app.use(cors({
-  origin: [
-    'http://localhost:3000', 
-    'https://baby2world.com', 
-    'http://baby2world.com'
-  ],
-  credentials: true,
+  origin: config.server.cors.origin,
+  credentials: config.server.cors.credentials,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
@@ -36,9 +34,14 @@ app.use(express.json());
 // Express Session Middleware (Passport OAuth ke liye zaroori)
 app.use(
   session({
-    secret: 'a_secret_key_for_session',
+    secret: config.jwt.secret,
     resave: false,
     saveUninitialized: true,
+    cookie: {
+      secure: config.isProduction, // HTTPS only in production
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    },
   })
 );
 
@@ -64,6 +67,12 @@ app.get('/', (req, res) => {
 });
 
 // Server ko start karna
-app.listen(PORT, '0.0.0.0',() => {
-  console.log(`Server is running on http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`🚀 Server is running on http://${HOST}:${PORT}`);
+  console.log(`🌍 Environment: ${config.environment}`);
+  console.log(`🔗 CORS Origins: ${config.server.cors.origin.join(', ')}`);
+  if (config.isDevelopment) {
+    console.log(`📊 Debug Mode: Enabled`);
+    console.log(`🔧 Features: ${JSON.stringify(config.features, null, 2)}`);
+  }
 });

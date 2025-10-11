@@ -10,11 +10,11 @@ exports.up = async function(query) {
   // Create god_names table
   await query(`
     CREATE TABLE IF NOT EXISTS god_names (
-      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      id SERIAL PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
       description TEXT,
-      religion_id UUID NOT NULL REFERENCES religions(id) ON DELETE CASCADE,
-      created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+      religion_id INTEGER NOT NULL REFERENCES religions(id) ON DELETE CASCADE,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     )

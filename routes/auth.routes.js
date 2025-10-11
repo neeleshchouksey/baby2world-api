@@ -18,11 +18,18 @@ router.post('/change-password', auth, changePassword);
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], session: false }));
 
 router.get('/google/callback', 
-    passport.authenticate('google', { failureRedirect: process.env.GOOGLE_FAILURE_REDIRECT || 'http://localhost:3000/user/login', session: false }),
+    passport.authenticate('google', { 
+        failureRedirect: process.env.NODE_ENV === 'production' 
+            ? 'https://baby2world.com/user/login' 
+            : 'http://localhost:3000/user/login', 
+        session: false 
+    }),
     (req, res) => {
         const payload = { id: req.user.id, email: req.user.email, role: req.user.role };
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
-        const successUrl = process.env.GOOGLE_SUCCESS_REDIRECT || 'http://localhost:3000/login/success';
+        const successUrl = process.env.NODE_ENV === 'production' 
+            ? 'https://baby2world.com/login/success'
+            : 'http://localhost:3000/login/success';
         res.redirect(`${successUrl}?token=${token}`);
     }
 );

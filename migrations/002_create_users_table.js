@@ -10,7 +10,7 @@ exports.up = async function(query) {
   // Create users table
   await query(`
     CREATE TABLE IF NOT EXISTS users (
-      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      id SERIAL PRIMARY KEY,
       google_id VARCHAR(255) UNIQUE,
       name VARCHAR(255) NOT NULL,
       email VARCHAR(255) UNIQUE NOT NULL,

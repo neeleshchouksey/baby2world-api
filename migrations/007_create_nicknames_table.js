@@ -10,11 +10,11 @@ exports.up = async function(query) {
   // Create nicknames table
   await query(`
     CREATE TABLE IF NOT EXISTS nicknames (
-      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      id SERIAL PRIMARY KEY,
       name VARCHAR(255) UNIQUE NOT NULL,
       description TEXT DEFAULT '',
-      created_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+      created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       is_active BOOLEAN DEFAULT true,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

@@ -1,3 +1,18 @@
+/**
+ * MongoDB to PostgreSQL Migration Script
+ * DISABLED - No longer needed as we're using PostgreSQL with SERIAL IDs
+ */
+
+console.log('⚠️  MongoDB to PostgreSQL migration script is DISABLED');
+console.log('   Reason: Now using PostgreSQL with SERIAL (auto-increment) IDs');
+console.log('   All data is managed directly in PostgreSQL');
+console.log('   No UUID generation needed - PostgreSQL handles ID generation automatically');
+
+// Exit the script
+process.exit(0);
+
+// Original migration code below (disabled)
+/*
 const { query } = require('./config/database');
 const mongoose = require('mongoose');
 require('dotenv').config();
@@ -59,14 +74,8 @@ const idMappings = {
   nicknames: new Map()
 };
 
-// Helper function to generate UUID
-function generateUUID() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c == 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
-}
+// Helper function to generate SERIAL ID (no longer needed - PostgreSQL handles this automatically)
+// SERIAL columns auto-increment, so we don't need to generate IDs manually
 
 // Migrate Users
 async function migrateUsers() {
@@ -319,3 +328,4 @@ async function migrateData() {
 
 // Run migration
 migrateData();
+*/

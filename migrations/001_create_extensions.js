@@ -1,23 +1,16 @@
 /**
  * Migration: 001_create_extensions
- * Description: Create PostgreSQL extensions required for the application
+ * Description: DISABLED - UUID extensions no longer needed (converted to SERIAL)
  * Created: 2025-01-03
+ * Status: DISABLED
  */
 
 exports.up = async function(query) {
-  console.log('Creating PostgreSQL extensions...');
-  
-  // Enable UUID extension for generating UUIDs
-  await query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');
-  
-  console.log('✅ Extensions created successfully');
+  console.log('Skipping PostgreSQL extensions (UUID no longer used)...');
+  // No longer needed - using SERIAL instead of UUID
 };
 
 exports.down = async function(query) {
-  console.log('Dropping PostgreSQL extensions...');
-  
-  // Drop UUID extension
-  await query('DROP EXTENSION IF EXISTS "uuid-ossp"');
-  
-  console.log('✅ Extensions dropped successfully');
+  console.log('Skipping PostgreSQL extensions (UUID no longer used)...');
+  // No longer needed - using SERIAL instead of UUID
 };

@@ -15,38 +15,38 @@ exports.up = async function(query) {
         NEW.updated_at = CURRENT_TIMESTAMP;
         RETURN NEW;
     END;
-    $$ LANGUAGE plpgsql
+    $$ LANGUAGE plpgsql;
   `);
   
-  // Create triggers for updated_at
+  // Create triggers for updated_at (using PROCEDURE for older PostgreSQL)
   await query(`
     CREATE TRIGGER update_users_updated_at 
     BEFORE UPDATE ON users 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
+    FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
   `);
   
   await query(`
     CREATE TRIGGER update_religions_updated_at 
     BEFORE UPDATE ON religions 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
+    FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
   `);
   
   await query(`
     CREATE TRIGGER update_names_updated_at 
     BEFORE UPDATE ON names 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
+    FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
   `);
   
   await query(`
     CREATE TRIGGER update_god_names_updated_at 
     BEFORE UPDATE ON god_names 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
+    FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
   `);
   
   await query(`
     CREATE TRIGGER update_nicknames_updated_at 
     BEFORE UPDATE ON nicknames 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column()
+    FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
   `);
   
   console.log('✅ Triggers created successfully');

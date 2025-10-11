@@ -1,12 +1,9 @@
 -- PostgreSQL Schema for Baby Name Application
 -- Database: name
 
--- Enable UUID extension for generating UUIDs
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- Users table
+-- Users table (using SERIAL instead of UUID)
 CREATE TABLE IF NOT EXISTS users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id SERIAL PRIMARY KEY,
     google_id VARCHAR(255) UNIQUE,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -24,11 +21,11 @@ CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
 
 -- Religions table
 CREATE TABLE IF NOT EXISTS religions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id SERIAL PRIMARY KEY,
     name VARCHAR(50) UNIQUE NOT NULL,
     is_active BOOLEAN DEFAULT true,
-    created_by UUID REFERENCES users(id) ON DELETE CASCADE,
-    updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_by INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -39,10 +36,10 @@ CREATE INDEX IF NOT EXISTS idx_religions_is_active ON religions(is_active);
 
 -- Names table
 CREATE TABLE IF NOT EXISTS names (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id SERIAL PRIMARY KEY,
     name VARCHAR(255) UNIQUE NOT NULL,
     description TEXT DEFAULT '',
-    religion_id UUID NOT NULL REFERENCES religions(id) ON DELETE CASCADE,
+    religion_id INTEGER NOT NULL REFERENCES religions(id) ON DELETE CASCADE,
     gender VARCHAR(10) NOT NULL CHECK (gender IN ('male', 'female', 'unisex')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -55,11 +52,11 @@ CREATE INDEX IF NOT EXISTS idx_names_gender ON names(gender);
 
 -- God Names table
 CREATE TABLE IF NOT EXISTS god_names (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    religion_id UUID NOT NULL REFERENCES religions(id) ON DELETE CASCADE,
-    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    religion_id INTEGER NOT NULL REFERENCES religions(id) ON DELETE CASCADE,
+    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -70,8 +67,8 @@ CREATE INDEX IF NOT EXISTS idx_god_names_religion_id ON god_names(religion_id);
 
 -- God Names Sub Names table (for the subNames array)
 CREATE TABLE IF NOT EXISTS god_name_sub_names (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    god_name_id UUID NOT NULL REFERENCES god_names(id) ON DELETE CASCADE,
+    id SERIAL PRIMARY KEY,
+    god_name_id INTEGER NOT NULL REFERENCES god_names(id) ON DELETE CASCADE,
     sub_name VARCHAR(255) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -81,11 +78,11 @@ CREATE INDEX IF NOT EXISTS idx_god_name_sub_names_god_name_id ON god_name_sub_na
 
 -- Nicknames table
 CREATE TABLE IF NOT EXISTS nicknames (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id SERIAL PRIMARY KEY,
     name VARCHAR(255) UNIQUE NOT NULL,
     description TEXT DEFAULT '',
-    created_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

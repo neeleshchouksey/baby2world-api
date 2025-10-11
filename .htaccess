@@ -1,0 +1,24 @@
+# Backend .htaccess for cPanel Node.js
+# This file should be in your backend directory (e.g., public_html/api/)
+
+RewriteEngine On
+
+# Handle Node.js application
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.js [QSA,L]
+
+# Security headers
+Header always set X-Content-Type-Options nosniff
+Header always set X-Frame-Options DENY
+Header always set X-XSS-Protection "1; mode=block"
+
+# CORS headers for API
+Header always set Access-Control-Allow-Origin "https://baby2world.com"
+Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Accept, Origin"
+Header always set Access-Control-Allow-Credentials "true"
+
+# Handle preflight requests
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule ^(.*)$ $1 [R=200,L]

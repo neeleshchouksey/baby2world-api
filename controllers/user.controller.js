@@ -36,9 +36,9 @@ exports.toggleFavorite = async (req, res) => {
   try {
     const { nameId } = req.params;
 
-    // 1. Validate the Name ID format (UUID format)
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(nameId)) {
+    // 1. Validate the Name ID format (Integer format)
+    const nameIdInt = parseInt(nameId);
+    if (isNaN(nameIdInt) || nameIdInt <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid Name ID format' });
     }
 
@@ -49,22 +49,22 @@ exports.toggleFavorite = async (req, res) => {
     }
 
     // 3. Check if the name actually exists in the database
-    const nameExists = await Name.findById(nameId);
+    const nameExists = await Name.findById(nameIdInt);
     if (!nameExists) {
       return res.status(404).json({ success: false, message: 'The specified name does not exist' });
     }
 
     // 4. Check if the name is already in the user's favorites
-    const isFavorite = await user.hasFavoriteName(nameId);
+    const isFavorite = await user.hasFavoriteName(nameIdInt);
     let message;
 
     if (isFavorite) {
       // If it's already a favorite, remove it
-      await User.findByIdAndUpdate(req.user.id, { $pull: { favorites: nameId } });
+      await User.findByIdAndUpdate(req.user.id, { $pull: { favorites: nameIdInt } });
       message = 'Removed from favorites successfully';
     } else {
       // If it's not a favorite, add it
-      await User.findByIdAndUpdate(req.user.id, { $addToSet: { favorites: nameId } });
+      await User.findByIdAndUpdate(req.user.id, { $addToSet: { favorites: nameIdInt } });
       message = 'Added to favorites successfully';
     }
 
@@ -106,9 +106,9 @@ exports.toggleGodNameFavorite = async (req, res) => {
   try {
     const { godNameId } = req.params;
 
-    // 1. Validate the God Name ID format (UUID format)
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(godNameId)) {
+    // 1. Validate the God Name ID format (Integer format)
+    const godNameIdInt = parseInt(godNameId);
+    if (isNaN(godNameIdInt) || godNameIdInt <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid God Name ID format' });
     }
 
@@ -119,23 +119,23 @@ exports.toggleGodNameFavorite = async (req, res) => {
     }
 
     // 2. Check if God Name exists
-    const GodName = require('../models/godname.model');
-    const godNameExists = await GodName.findById(godNameId);
+    const GodName = require('../models/godName.model');
+    const godNameExists = await GodName.findById(godNameIdInt);
     if (!godNameExists) {
       return res.status(404).json({ success: false, message: 'The specified god name does not exist' });
     }
 
     // 3. Check if God Name is already in favorites
-    const isFavorite = await user.hasFavoriteGodName(godNameId);
+    const isFavorite = await user.hasFavoriteGodName(godNameIdInt);
     let message;
 
     if (isFavorite) {
       // If it's already a favorite, remove it
-      await User.findByIdAndUpdate(req.user.id, { $pull: { godNameFavorites: godNameId } });
+      await User.findByIdAndUpdate(req.user.id, { $pull: { godNameFavorites: godNameIdInt } });
       message = 'Removed from god name favorites successfully';
     } else {
       // If it's not a favorite, add it
-      await User.findByIdAndUpdate(req.user.id, { $addToSet: { godNameFavorites: godNameId } });
+      await User.findByIdAndUpdate(req.user.id, { $addToSet: { godNameFavorites: godNameIdInt } });
       message = 'Added to god name favorites successfully';
     }
 
@@ -190,9 +190,9 @@ exports.toggleNicknameFavorite = async (req, res) => {
   try {
     const { nicknameId } = req.params;
 
-    // 1. Validate the Nickname ID format (UUID format)
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(nicknameId)) {
+    // 1. Validate the Nickname ID format (Integer format)
+    const nicknameIdInt = parseInt(nicknameId);
+    if (isNaN(nicknameIdInt) || nicknameIdInt <= 0) {
       return res.status(400).json({ success: false, message: 'Invalid Nickname ID format' });
     }
 
@@ -203,22 +203,22 @@ exports.toggleNicknameFavorite = async (req, res) => {
     }
 
     // 3. Check if the nickname actually exists in the database
-    const nicknameExists = await NickName.findById(nicknameId);
+    const nicknameExists = await NickName.findById(nicknameIdInt);
     if (!nicknameExists) {
       return res.status(404).json({ success: false, message: 'The specified nickname does not exist' });
     }
 
     // 4. Check if the nickname is already in the user's favorites
-    const isFavorite = await user.hasFavoriteNickname(nicknameId);
+    const isFavorite = await user.hasFavoriteNickname(nicknameIdInt);
     let message;
 
     if (isFavorite) {
       // If it's already a favorite, remove it
-      await User.findByIdAndUpdate(req.user.id, { $pull: { nicknameFavorites: nicknameId } });
+      await User.findByIdAndUpdate(req.user.id, { $pull: { nicknameFavorites: nicknameIdInt } });
       message = 'Removed from nickname favorites successfully';
     } else {
       // If it's not a favorite, add it
-      await User.findByIdAndUpdate(req.user.id, { $addToSet: { nicknameFavorites: nicknameId } });
+      await User.findByIdAndUpdate(req.user.id, { $addToSet: { nicknameFavorites: nicknameIdInt } });
       message = 'Added to nickname favorites successfully';
     }
 

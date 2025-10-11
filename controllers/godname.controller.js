@@ -1,4 +1,4 @@
-const GodName = require('../models/godname.model');
+const GodName = require('../models/godName.model');
 
 // Get all god names
 exports.getAllGodNames = async (req, res) => {

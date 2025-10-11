@@ -6,6 +6,15 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
+    "migrate": "node migrate.js",
+    "seed": "node seed.js",
+    "migrate:up": "node migrate.js up",
+    "migrate:down": "node migrate.js down",
+    "migrate:reset": "node migrate.js reset",
+    "seed:admin": "node seed.js admin",
+    "seed:all": "node seed.js all",
+    "seed:status": "node seed.js status",
+    "fresh": "node migrate.js fresh",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {

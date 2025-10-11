@@ -10,10 +10,10 @@ exports.up = async function(query) {
   // Create names table
   await query(`
     CREATE TABLE IF NOT EXISTS names (
-      id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+      id SERIAL PRIMARY KEY,
       name VARCHAR(255) UNIQUE NOT NULL,
       description TEXT DEFAULT '',
-      religion_id UUID NOT NULL REFERENCES religions(id) ON DELETE CASCADE,
+      religion_id INTEGER NOT NULL REFERENCES religions(id) ON DELETE CASCADE,
       gender VARCHAR(10) NOT NULL CHECK (gender IN ('male', 'female', 'unisex')),
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP

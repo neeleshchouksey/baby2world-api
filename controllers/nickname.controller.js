@@ -4,12 +4,20 @@ const User = require('../models/user.model');
 // Get all nicknames
 const getAllNicknames = async (req, res) => {
   try {
-    const { search } = req.query;
+    const { search, letter, gender } = req.query;
     const filterQuery = { isActive: true };
+    
+    // Gender filter functionality
+    if (gender) {
+      filterQuery.gender = gender.toLowerCase();
+    }
     
     // Search functionality
     if (search) {
       filterQuery.name = { $regex: `%${search}%` };
+    } else if (letter) {
+      // Letter filter functionality
+      filterQuery.name = { $regex: `${letter}%` };
     }
     
     const nicknames = await Nickname.find(filterQuery, { sort: { name: 1 } });
@@ -133,6 +141,7 @@ const updateNickname = async (req, res) => {
   try {
     // Check if user is admin
     const user = await User.findById(req.user.id);
+    
     if (!user || user.role !== 'admin') {
       return res.status(403).json({ 
         success: false, 
@@ -140,14 +149,23 @@ const updateNickname = async (req, res) => {
       });
     }
 
-    const { name, description } = req.body;
+    const { name, description, gender } = req.body;
     const nicknameId = req.params.id;
+    
 
     // Validation
     if (!name || name.trim() === '') {
       return res.status(400).json({ 
         success: false, 
         error: 'Nickname is required' 
+      });
+    }
+
+    // Validate gender
+    if (gender && !['male', 'female', 'unisex'].includes(gender)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid gender. Must be male, female, or unisex' 
       });
     }
 
@@ -178,6 +196,7 @@ const updateNickname = async (req, res) => {
     // Update nickname
     nickname.name = name.trim();
     nickname.description = description || '';
+    nickname.gender = gender || 'unisex';
     nickname.updatedBy = req.user.id;
     await nickname.save();
 

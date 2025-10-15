@@ -7,8 +7,8 @@ async function upsertAdmin() {
     console.log('👤 Seeding admin user...');
     
     // Get admin credentials from environment
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@example.com';
-    const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminPassword = process.env.ADMIN_PASSWORD;
     
     console.log(`   📧 Email: ${adminEmail}`);
     console.log(`   🔐 Password: ${adminPassword}`);

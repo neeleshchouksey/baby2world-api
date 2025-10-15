@@ -1,6 +1,7 @@
 const User = require('../models/user.model');
 const Name = require('../models/name.model');
 const NickName = require('../models/nickname.model');
+const { query } = require('../config/database');
 /**
  * @desc    Get the logged-in user's list of favorite names
  * @route   GET /api/user/favorites
@@ -233,6 +234,140 @@ exports.toggleNicknameFavorite = async (req, res) => {
 
   } catch (error) {
     console.error("Error toggling nickname favorite:", error);
+    res.status(500).json({ success: false, error: 'Server Error' });
+  }
+};
+
+/**
+ * @desc    Get all users (Admin only)
+ * @route   GET /api/user/all
+ * @access  Private (Admin)
+ */
+exports.getAllUsers = async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Access denied. Admin only.' });
+    }
+
+    const { page = 1, limit = 10, search = '', sortBy = 'newest' } = req.query;
+    const offset = (page - 1) * limit;
+
+    let whereClause = '';
+    let queryParams = [];
+    let paramCount = 1;
+
+    if (search) {
+      whereClause = `WHERE name ILIKE $${paramCount} OR email ILIKE $${paramCount}`;
+      queryParams.push(`%${search}%`);
+      paramCount++;
+    }
+
+    // Add sorting logic
+    let orderBy = 'ORDER BY created_at DESC'; // default
+    switch (sortBy) {
+      case 'oldest':
+        orderBy = 'ORDER BY created_at ASC';
+        break;
+      case 'alphabetical':
+        orderBy = 'ORDER BY name ASC';
+        break;
+      case 'newest':
+      default:
+        orderBy = 'ORDER BY created_at DESC';
+        break;
+    }
+
+    // Get total count
+    const countQuery = `SELECT COUNT(*) FROM users ${whereClause}`;
+    const countResult = await query(countQuery, queryParams);
+    const totalUsers = parseInt(countResult.rows[0].count);
+
+    // Get users with pagination
+    const usersQuery = `
+      SELECT id, name, email, role, created_at, updated_at, picture
+      FROM users 
+      ${whereClause}
+      ${orderBy}
+      LIMIT $${paramCount} OFFSET $${paramCount + 1}
+    `;
+    
+    queryParams.push(parseInt(limit), offset);
+    const usersResult = await query(usersQuery, queryParams);
+
+    const users = usersResult.rows.map(user => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      createdAt: user.created_at,
+      updatedAt: user.updated_at,
+      picture: user.picture
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: users,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalUsers / limit),
+        totalUsers,
+        hasNext: page < Math.ceil(totalUsers / limit),
+        hasPrev: page > 1
+      }
+    });
+
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    res.status(500).json({ success: false, error: 'Server Error' });
+  }
+};
+
+/**
+ * @desc    Delete a user (Admin only)
+ * @route   DELETE /api/user/:userId
+ * @access  Private (Admin)
+ */
+exports.deleteUser = async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Access denied. Admin only.' });
+    }
+
+    const { userId } = req.params;
+    const userIdInt = parseInt(userId);
+
+    if (isNaN(userIdInt) || userIdInt <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid User ID format' });
+    }
+
+    // Check if user exists
+    const user = await User.findById(userIdInt);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Don't allow admin to delete themselves
+    if (userIdInt === req.user.id) {
+      return res.status(400).json({ success: false, message: 'Cannot delete your own account' });
+    }
+
+    // Delete user's favorites first
+    await query('DELETE FROM user_favorite_names WHERE user_id = $1', [userIdInt]);
+    await query('DELETE FROM user_favorite_god_names WHERE user_id = $1', [userIdInt]);
+    await query('DELETE FROM user_favorite_nicknames WHERE user_id = $1', [userIdInt]);
+
+    // Delete the user
+    await query('DELETE FROM users WHERE id = $1', [userIdInt]);
+
+    res.status(200).json({
+      success: true,
+      message: 'User deleted successfully'
+    });
+
+  } catch (error) {
+    console.error("Error deleting user:", error);
     res.status(500).json({ success: false, error: 'Server Error' });
   }
 };

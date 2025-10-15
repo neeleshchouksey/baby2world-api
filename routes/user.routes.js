@@ -24,4 +24,8 @@ router.post('/favorites/god-names/:godNameId', auth, userController.toggleGodNam
 router.get('/favorites/nicknames', auth, userController.getNicknameFavorites);
 router.post('/favorites/nicknames/:nicknameId', auth, userController.toggleNicknameFavorite);
 
+// Admin routes for user management
+router.get('/all', auth, userController.getAllUsers);
+router.delete('/:userId', auth, userController.deleteUser);
+
 module.exports = router;

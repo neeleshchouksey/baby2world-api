@@ -5,6 +5,7 @@ class Nickname {
     this.id = data.id;
     this.name = data.name;
     this.description = data.description;
+    this.gender = data.gender || 'unisex';
     this.createdBy = data.created_by;
     this.updatedBy = data.updated_by;
     this.isActive = data.is_active;
@@ -75,6 +76,12 @@ class Nickname {
         values.push(filterQuery.name.$regex);
         paramCount++;
       }
+    }
+
+    if (filterQuery.gender) {
+      whereClause += ` AND n.gender = $${paramCount}`;
+      values.push(filterQuery.gender);
+      paramCount++;
     }
 
     // Build ORDER BY clause
@@ -166,9 +173,9 @@ class Nickname {
   // Instance method to save nickname
   async save() {
     const result = await query(
-      `UPDATE nicknames SET name = $1, description = $2, is_active = $3, updated_by = $4 
-       WHERE id = $5 RETURNING *`,
-      [this.name, this.description, this.isActive, this.updatedBy, this.id]
+      `UPDATE nicknames SET name = $1, description = $2, gender = $3, is_active = $4, updated_by = $5 
+       WHERE id = $6 RETURNING *`,
+      [this.name, this.description, this.gender, this.isActive, this.updatedBy, this.id]
     );
 
     return new Nickname(result.rows[0]);

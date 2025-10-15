@@ -15,7 +15,12 @@ const User = require('../models/user.model');
 router.post('/admin/login', adminLogin);
 router.post('/user/login', userLogin);
 router.post('/change-password', auth, changePassword);
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], session: false }));
+router.get('/google', passport.authenticate('google', { 
+  scope: ['profile', 'email'], 
+  session: false,
+  accessType: 'offline',
+  prompt: 'consent'
+}));
 
 router.get('/google/callback', 
     passport.authenticate('google', { 

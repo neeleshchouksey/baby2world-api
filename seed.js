@@ -7,12 +7,11 @@
 
 require('dotenv').config();
 const { query } = require('./config/database');
-const config = require('./config/environment');
 
 console.log('🌱 Baby Names Database Seeder');
 console.log('================================');
-console.log(`Environment: ${config.environment}`);
-console.log(`Database: ${config.database.database}`);
+console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+console.log(`Database: ${process.env.DB_NAME || 'brickvio_baby2world_db1'}`);
 console.log('================================\n');
 
 // Import seeders

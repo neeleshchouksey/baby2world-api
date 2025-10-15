@@ -18,21 +18,27 @@ exports.getAllNames = async (req, res) => {
       filterQuery.gender = gender.toLowerCase();
     }
     
-    // Religion filter: accept either UUID or name (case-insensitive)
+    // Religion filter: accept UUID, serial number, or name
     if (religionId) {
+      // Check if it's a UUID format
       if (uuidRegex.test(religionId)) {
         filterQuery.religionId = religionId;
-      } else {
-        // Try resolving by religion name → id
+      } 
+      // Check if it's a numeric ID (serial number)
+      else if (!isNaN(religionId) && religionId > 0) {
+        filterQuery.religionId = religionId;
+      } 
+      // Try resolving by religion name
+      else {
         try {
           const religion = await Religion.findOne({ name: { $regex: `%${religionId}%` }, isActive: true });
           if (religion) {
             filterQuery.religionId = religion.id;
           } else {
-            // If no religion found by name, avoid setting an invalid UUID filter
+            // If no religion found by name, avoid setting an invalid filter
             filterQuery.religionId = undefined;
           }
-        } catch (_) {
+        } catch (error) {
           // Ignore lookup errors; proceed without religion filter
         }
       }

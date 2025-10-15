@@ -1,24 +1,79 @@
-# Backend .htaccess for cPanel Node.js
-# This file should be in your backend directory (e.g., public_html/api/)
+# Backend .htaccess for cPanel Node.js Application
+# Location: /home/brickvio/api.baby2world.com/.htaccess
 
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION BEGIN
+PassengerAppRoot "/home/brickvio/api.baby2world.com"
+PassengerBaseURI "/"
+PassengerNodejs "/home/brickvio/nodevenv/api.baby2world.com/24/bin/node"
+PassengerAppType node
+PassengerStartupFile index.js
+PassengerEnabled on
+PassengerRestartDir "/home/brickvio/api.baby2world.com/tmp"
+# DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION END
+
+# Rewrite Engine
 RewriteEngine On
 
-# Handle Node.js application
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^(.*)$ index.js [QSA,L]
-
-# Security headers
-Header always set X-Content-Type-Options nosniff
-Header always set X-Frame-Options DENY
-Header always set X-XSS-Protection "1; mode=block"
-
-# CORS headers for API
-Header always set Access-Control-Allow-Origin "https://baby2world.com"
-Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Accept, Origin"
-Header always set Access-Control-Allow-Credentials "true"
-
-# Handle preflight requests
+# Handle OPTIONS preflight requests FIRST (Important!)
 RewriteCond %{REQUEST_METHOD} OPTIONS
 RewriteRule ^(.*)$ $1 [R=200,L]
+
+# Don't rewrite files or directories that exist
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Security Headers
+<IfModule mod_headers.c>
+    # Basic Security
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "DENY"
+    Header always set X-XSS-Protection "1; mode=block"
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    
+    # CORS Headers for API - Multiple Origins Support
+    SetEnvIf Origin "^https?://(www\.)?(baby2world\.com|localhost:3000|localhost:5173)$" ORIGIN_ALLOWED=$0
+    
+    Header always set Access-Control-Allow-Origin "%{ORIGIN_ALLOWED}e" env=ORIGIN_ALLOWED
+    Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+    Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Accept, Origin, Cache-Control, Pragma"
+    Header always set Access-Control-Allow-Credentials "true"
+    Header always set Access-Control-Max-Age "3600"
+    
+    # API Response - No Cache (Important for mobile)
+    Header always set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+    Header always set Pragma "no-cache"
+    Header always set Expires "0"
+    
+    # Remove X-Powered-By for security
+    Header unset X-Powered-By
+</IfModule>
+
+# Prevent directory browsing
+Options -Indexes
+
+# Protect sensitive files
+<FilesMatch "^\.">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Protect .env, config, and sensitive files
+<FilesMatch "\.(env|log|sql|sqlite|md|gitignore|htaccess|sh)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+<Files "package.json">
+    Order allow,deny
+    Deny from all
+</Files>
+
+<Files "package-lock.json">
+    Order allow,deny
+    Deny from all
+</Files>
+
+# DO NOT REMOVE OR MODIFY. CLOUDLINUX ENV VARS CONFIGURATION BEGIN
+<IfModule Litespeed>
+</IfModule>
+# DO NOT REMOVE OR MODIFY. CLOUDLINUX ENV VARS CONFIGURATION END

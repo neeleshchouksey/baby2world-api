@@ -8,7 +8,6 @@ const nameRoutes = require('./routes/name.routes');
 const godNameRoutes = require('./routes/godname.routes');
 const userRoutes = require('./routes/user.routes')
 const nicknameRoutes = require('./routes/nickname.routes');
-const config = require('./config/environment');
 require('dotenv').config();
 
 // Passport Config (yeh line passport-setup.js file ko execute karti hai)
@@ -17,13 +16,17 @@ require('./config/passport-setup');
 const authRoutes = require('./routes/auth.routes');
 
 const app = express();
-const PORT = config.server.port;
-const HOST = config.server.host;
+const PORT = process.env.PORT || 5000;
+const HOST = process.env.HOST || '0.0.0.0';
 
 // CORS Configuration - Environment based
+const corsOrigins = process.env.NODE_ENV === 'production' 
+  ? ['https://baby2world.com', 'https://www.baby2world.com']
+  : ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000'];
+
 app.use(cors({
-  origin: config.server.cors.origin,
-  credentials: config.server.cors.credentials,
+  origin: corsOrigins,
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
 }));
@@ -34,11 +37,11 @@ app.use(express.json());
 // Express Session Middleware (Passport OAuth ke liye zaroori)
 app.use(
   session({
-    secret: config.jwt.secret,
+    secret: process.env.JWT_SECRET || 'your_jwt_secret_here',
     resave: false,
     saveUninitialized: true,
     cookie: {
-      secure: config.isProduction, // HTTPS only in production
+      secure: process.env.NODE_ENV === 'production', // HTTPS only in production
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
     },
@@ -69,10 +72,9 @@ app.get('/', (req, res) => {
 // Server ko start karna
 app.listen(PORT, HOST, () => {
   console.log(`🚀 Server is running on http://${HOST}:${PORT}`);
-  console.log(`🌍 Environment: ${config.environment}`);
-  console.log(`🔗 CORS Origins: ${config.server.cors.origin.join(', ')}`);
-  if (config.isDevelopment) {
+  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔗 CORS Origins: ${corsOrigins.join(', ')}`);
+  if (process.env.NODE_ENV !== 'production') {
     console.log(`📊 Debug Mode: Enabled`);
-    console.log(`🔧 Features: ${JSON.stringify(config.features, null, 2)}`);
   }
 });

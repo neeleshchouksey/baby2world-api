@@ -4,6 +4,7 @@ const GodName = require('../models/godName.model');
 exports.getAllGodNames = async (req, res) => {
   try {
     const godNames = await GodName.find({}, { sort: { name: 1 } });
+    
     res.json({
       success: true,
       data: godNames

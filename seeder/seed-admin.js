@@ -1,7 +1,6 @@
 require('dotenv').config();
 const { query } = require('../config/database');
 const User = require('../models/user.model');
-const config = require('../config/environment');
 
 async function upsertAdmin() {
   try {
@@ -13,7 +12,7 @@ async function upsertAdmin() {
     
     console.log(`   📧 Email: ${adminEmail}`);
     console.log(`   🔐 Password: ${adminPassword}`);
-    console.log(`   🌍 Environment: ${config.environment}`);
+    console.log(`   🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
 
     // Delete any existing admin with same email to avoid unique conflicts
     await query('DELETE FROM users WHERE email = $1', [adminEmail]);

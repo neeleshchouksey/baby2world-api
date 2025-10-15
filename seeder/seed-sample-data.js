@@ -1,50 +1,46 @@
 require('dotenv').config();
 const { query } = require('../config/database');
-const User = require('../models/user.model');
-const Religion = require('../models/religion.model');
-const Name = require('../models/name.model');
-const GodName = require('../models/godName.model');
-const Nickname = require('../models/nickname.model');
-const config = require('../config/environment');
 
 async function seedSampleData() {
   try {
     console.log('📊 Seeding sample data...');
-    console.log(`   🌍 Environment: ${config.environment}`);
-    console.log(`   🗄️  Database: ${config.database.database}\n`);
+    console.log(`   🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`   🗄️  Database: ${process.env.DB_NAME || 'brickvio_baby2world_db1'}\n`);
 
     // Get admin user
-    const adminUser = await User.findOne({ email: process.env.ADMIN_EMAIL || 'admin@example.com' });
-    if (!adminUser) {
+    const adminResult = await query(
+      'SELECT * FROM users WHERE email = $1 LIMIT 1',
+      [process.env.ADMIN_EMAIL || 'admin@baby2world.com']
+    );
+    
+    if (adminResult.rows.length === 0) {
       console.log('❌ Admin user not found. Please run seed-admin.js first.');
       throw new Error('Admin user not found');
     }
 
+    const adminUser = adminResult.rows[0];
     console.log('✅ Admin user found:', adminUser.email);
 
     // 1. Create Religions
     console.log('\n1. Creating religions...');
-    const religions = [
-      { name: 'Hinduism', isActive: true },
-      { name: 'Islam', isActive: true },
-      { name: 'Christianity', isActive: true },
-      { name: 'Sikhism', isActive: true },
-      { name: 'Buddhism', isActive: true }
-    ];
-
+    const religionNames = ['Hinduism', 'Islam', 'Christianity', 'Sikhism', 'Buddhism'];
     const createdReligions = [];
-    for (const religionData of religions) {
-      const religion = await Religion.create({
-        ...religionData,
-        createdBy: adminUser.id
-      });
-      createdReligions.push(religion);
-      console.log(`   ✅ Created religion: ${religion.name} (ID: ${religion.id})`);
+
+    for (const religionName of religionNames) {
+      const result = await query(
+        `INSERT INTO religions (name, is_active, created_by) 
+         VALUES ($1, $2, $3) 
+         ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+         RETURNING *`,
+        [religionName, true, adminUser.id]
+      );
+      createdReligions.push(result.rows[0]);
+      console.log(`   ✅ Created religion: ${religionName} (ID: ${result.rows[0].id})`);
     }
 
     // 2. Create Names
     console.log('\n2. Creating names...');
-    const names = [
+    const namesData = [
       { name: 'Arjun', description: 'Bright, shining', religionId: createdReligions[0].id, gender: 'male' },
       { name: 'Priya', description: 'Beloved', religionId: createdReligions[0].id, gender: 'female' },
       { name: 'Ahmad', description: 'Most commendable', religionId: createdReligions[1].id, gender: 'male' },
@@ -56,15 +52,20 @@ async function seedSampleData() {
     ];
 
     const createdNames = [];
-    for (const nameData of names) {
-      const name = await Name.create(nameData);
-      createdNames.push(name);
-      console.log(`   ✅ Created name: ${name.name} (${name.gender}) - ID: ${name.id}`);
+    for (const nameData of namesData) {
+      const result = await query(
+        `INSERT INTO names (name, description, religion_id, gender) 
+         VALUES ($1, $2, $3, $4) 
+         RETURNING *`,
+        [nameData.name, nameData.description, nameData.religionId, nameData.gender]
+      );
+      createdNames.push(result.rows[0]);
+      console.log(`   ✅ Created name: ${nameData.name} (${nameData.gender}) - ID: ${result.rows[0].id}`);
     }
 
     // 3. Create God Names
     console.log('\n3. Creating god names...');
-    const godNames = [
+    const godNamesData = [
       { name: 'Krishna', description: 'Dark blue, all-attractive', religionId: createdReligions[0].id },
       { name: 'Shiva', description: 'Auspicious one', religionId: createdReligions[0].id },
       { name: 'Allah', description: 'The God', religionId: createdReligions[1].id },
@@ -74,18 +75,20 @@ async function seedSampleData() {
     ];
 
     const createdGodNames = [];
-    for (const godNameData of godNames) {
-      const godName = await GodName.create({
-        ...godNameData,
-        createdBy: adminUser.id
-      });
-      createdGodNames.push(godName);
-      console.log(`   ✅ Created god name: ${godName.name} - ID: ${godName.id}`);
+    for (const godNameData of godNamesData) {
+      const result = await query(
+        `INSERT INTO god_names (name, description, religion_id, created_by) 
+         VALUES ($1, $2, $3, $4) 
+         RETURNING *`,
+        [godNameData.name, godNameData.description, godNameData.religionId, adminUser.id]
+      );
+      createdGodNames.push(result.rows[0]);
+      console.log(`   ✅ Created god name: ${godNameData.name} - ID: ${result.rows[0].id}`);
     }
 
     // 4. Create Nicknames
     console.log('\n4. Creating nicknames...');
-    const nicknames = [
+    const nicknamesData = [
       { name: 'Arju', description: 'Short form of Arjun' },
       { name: 'Pri', description: 'Short form of Priya' },
       { name: 'Ammu', description: 'Cute nickname' },
@@ -95,32 +98,47 @@ async function seedSampleData() {
     ];
 
     const createdNicknames = [];
-    for (const nicknameData of nicknames) {
-      const nickname = await Nickname.create({
-        ...nicknameData,
-        createdBy: adminUser.id
-      });
-      createdNicknames.push(nickname);
-      console.log(`   ✅ Created nickname: ${nickname.name} - ID: ${nickname.id}`);
+    for (const nicknameData of nicknamesData) {
+      const result = await query(
+        `INSERT INTO nicknames (name, description, created_by) 
+         VALUES ($1, $2, $3) 
+         RETURNING *`,
+        [nicknameData.name, nicknameData.description, adminUser.id]
+      );
+      createdNicknames.push(result.rows[0]);
+      console.log(`   ✅ Created nickname: ${nicknameData.name} - ID: ${result.rows[0].id}`);
     }
 
-    // 5. Add some favorites for admin user
+    // 5. Add favorites for admin user
     console.log('\n5. Adding favorites for admin user...');
+    
     if (createdNames.length >= 2) {
-      await User.findByIdAndUpdate(adminUser.id, { $addToSet: { favorites: createdNames[0].id } });
-      await User.findByIdAndUpdate(adminUser.id, { $addToSet: { favorites: createdNames[1].id } });
+      await query(
+        `INSERT INTO user_favorite_names (user_id, name_id) 
+         VALUES ($1, $2), ($1, $3) 
+         ON CONFLICT DO NOTHING`,
+        [adminUser.id, createdNames[0].id, createdNames[1].id]
+      );
       console.log('   ✅ Added name favorites');
     }
 
     if (createdGodNames.length >= 2) {
-      await User.findByIdAndUpdate(adminUser.id, { $addToSet: { godNameFavorites: createdGodNames[0].id } });
-      await User.findByIdAndUpdate(adminUser.id, { $addToSet: { godNameFavorites: createdGodNames[1].id } });
+      await query(
+        `INSERT INTO user_favorite_god_names (user_id, god_name_id) 
+         VALUES ($1, $2), ($1, $3) 
+         ON CONFLICT DO NOTHING`,
+        [adminUser.id, createdGodNames[0].id, createdGodNames[1].id]
+      );
       console.log('   ✅ Added god name favorites');
     }
 
     if (createdNicknames.length >= 2) {
-      await User.findByIdAndUpdate(adminUser.id, { $addToSet: { nicknameFavorites: createdNicknames[0].id } });
-      await User.findByIdAndUpdate(adminUser.id, { $addToSet: { nicknameFavorites: createdNicknames[1].id } });
+      await query(
+        `INSERT INTO user_favorite_nicknames (user_id, nickname_id) 
+         VALUES ($1, $2), ($1, $3) 
+         ON CONFLICT DO NOTHING`,
+        [adminUser.id, createdNicknames[0].id, createdNicknames[1].id]
+      );
       console.log('   ✅ Added nickname favorites');
     }
 
@@ -132,6 +150,8 @@ async function seedSampleData() {
     console.log(`   - Nicknames: ${createdNicknames.length}`);
     console.log(`   - Admin user: ${adminUser.email}`);
 
+    return true;
+
   } catch (error) {
     console.error('❌ Seeding error:', error.message);
     console.error('Stack:', error.stack);
@@ -139,7 +159,7 @@ async function seedSampleData() {
   }
 }
 
-// Export function for use in seed.js
+// Export function
 module.exports = seedSampleData;
 
 // Run directly if called from command line

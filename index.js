@@ -14,6 +14,7 @@ require('dotenv').config();
 require('./config/passport-setup'); 
 
 const authRoutes = require('./routes/auth.routes');
+const csvImportRoutes = require('./routes/csvImport.routes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -32,7 +33,8 @@ app.use(cors({
 }));
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Express Session Middleware (Passport OAuth ke liye zaroori)
 app.use(
@@ -64,6 +66,7 @@ app.use('/api/names', nameRoutes);
 app.use('/api/god-names', godNameRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/nicknames', nicknameRoutes);
+app.use('/api/csv-import', csvImportRoutes);
 // Test route to check if server is running
 app.get('/', (req, res) => {
   res.json({ message: 'Server is running!' });

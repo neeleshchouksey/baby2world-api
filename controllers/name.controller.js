@@ -50,14 +50,60 @@ exports.getAllNames = async (req, res) => {
       filterQuery.name = { $regex: `${letter}%` };
     }
     
-    // Fetch data from database
-    const totalNames = await Name.countDocuments(filterQuery);
+    // Fetch data from database using PostgreSQL
+    const { query } = require('../config/database');
+    
+    // Build WHERE clause for PostgreSQL
+    let whereClause = 'WHERE 1=1';
+    const params = [];
+    let paramIndex = 1;
+    
+    if (filterQuery.gender) {
+      whereClause += ` AND LOWER(gender) = LOWER($${paramIndex})`;
+      params.push(filterQuery.gender);
+      paramIndex++;
+    }
+    
+    if (filterQuery.religionId) {
+      whereClause += ` AND religion_id = $${paramIndex}`;
+      params.push(filterQuery.religionId);
+      paramIndex++;
+    }
+    
+    if (filterQuery.name) {
+      whereClause += ` AND LOWER(name) LIKE LOWER($${paramIndex})`;
+      params.push(`%${filterQuery.name}%`);
+      paramIndex++;
+    }
+    
+    // Get total count
+    const countResult = await query(`SELECT COUNT(*) as total FROM names ${whereClause}`, params);
+    const totalNames = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(totalNames / limit);
-    const names = await Name.find(filterQuery, {
-      page: page,
-      limit: limit,
-      sort: { name: 1 }
-    });
+    
+    // Get names with pagination
+    const offset = (page - 1) * limit;
+    const namesQuery = `
+      SELECT n.*, r.name as religion_name 
+      FROM names n 
+      LEFT JOIN religions r ON n.religion_id = r.id 
+      ${whereClause} 
+      ORDER BY n.name ASC 
+      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+    `;
+    params.push(limit, offset);
+    
+    const namesResult = await query(namesQuery, params);
+    const names = namesResult.rows.map(row => new Name({
+      id: row.id,
+      name: row.name,
+      description: row.description,
+      religion_id: row.religion_id,
+      gender: row.gender,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+      religion: row.religion_name
+    }));
     
     // Send the final response to frontend
     res.json({
@@ -184,6 +230,31 @@ exports.deleteName = async (req, res) => {
     res.status(500).json({ 
       success: false, 
       error: 'Error deleting name' 
+    });
+  }
+};
+
+// Delete all names
+exports.deleteAllNames = async (req, res) => {
+  try {
+    console.log('Delete all names request received');
+    const { query } = require('../config/database');
+    
+    // Delete all names from database
+    console.log('Executing DELETE FROM names query...');
+    const result = await query('DELETE FROM names');
+    console.log('Delete query result:', result);
+    
+    res.json({
+      success: true,
+      message: 'All names deleted successfully',
+      deletedCount: result.rowCount
+    });
+  } catch (error) {
+    console.error('Error deleting all names:', error);
+    res.status(500).json({
+      success: false,
+      error: `Error deleting all names: ${error.message}`
     });
   }
 };

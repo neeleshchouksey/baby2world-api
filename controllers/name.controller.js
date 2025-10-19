@@ -13,9 +13,15 @@ exports.getAllNames = async (req, res) => {
     let filterQuery = {};
     const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     
-    // Gender filter
+    // Gender filter - map frontend values to database values
     if (gender) {
-      filterQuery.gender = gender.toLowerCase();
+      if (gender.toLowerCase() === 'boy') {
+        filterQuery.gender = 'male';
+      } else if (gender.toLowerCase() === 'girl') {
+        filterQuery.gender = 'female';
+      } else {
+        filterQuery.gender = gender.toLowerCase();
+      }
     }
     
     // Religion filter: accept UUID, serial number, or name
@@ -45,9 +51,9 @@ exports.getAllNames = async (req, res) => {
     }
 
     if (search) {
-      filterQuery.name = { $regex: `%${search}%` };
+      filterQuery.search = search;
     } else if (letter) {
-      filterQuery.name = { $regex: `${letter}%` };
+      filterQuery.letter = letter;
     }
     
     // Fetch data from database using PostgreSQL
@@ -70,14 +76,18 @@ exports.getAllNames = async (req, res) => {
       paramIndex++;
     }
     
-    if (filterQuery.name) {
-      whereClause += ` AND LOWER(name) LIKE LOWER($${paramIndex})`;
-      params.push(`%${filterQuery.name}%`);
+    if (filterQuery.search) {
+      whereClause += ` AND LOWER(n.name) LIKE LOWER($${paramIndex})`;
+      params.push(`%${filterQuery.search}%`);
+      paramIndex++;
+    } else if (filterQuery.letter) {
+      whereClause += ` AND LOWER(n.name) LIKE LOWER($${paramIndex})`;
+      params.push(`${filterQuery.letter}%`);
       paramIndex++;
     }
     
     // Get total count
-    const countResult = await query(`SELECT COUNT(*) as total FROM names ${whereClause}`, params);
+    const countResult = await query(`SELECT COUNT(*) as total FROM names n ${whereClause}`, params);
     const totalNames = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(totalNames / limit);
     

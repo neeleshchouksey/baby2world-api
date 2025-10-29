@@ -201,7 +201,7 @@ class User {
       SELECT n.*, r.name as religion_name 
       FROM user_favorite_names ufn
       JOIN names n ON ufn.name_id = n.id
-      JOIN religions r ON n.religion_id = r.id
+      LEFT JOIN religions r ON n.religion_id = r.id
       WHERE ufn.user_id = $1
       ORDER BY n.name
     `, [this.id]);
@@ -215,7 +215,7 @@ class User {
       SELECT gn.*, r.name as religion_name 
       FROM user_favorite_god_names ufgn
       JOIN god_names gn ON ufgn.god_name_id = gn.id
-      JOIN religions r ON gn.religion_id = r.id
+      LEFT JOIN religions r ON gn.religion_id = r.id
       WHERE ufgn.user_id = $1
       ORDER BY gn.name
     `, [this.id]);

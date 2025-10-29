@@ -160,8 +160,26 @@ exports.createName = async (req, res) => {
   try {
     const { name, description, religionId, gender } = req.body;
     
-    // Check if name already exists (case-insensitive check)
-    const existingName = await Name.findOne({ name: { $regex: `%${name}%` } });
+    // Validate required fields
+    if (!name || !name.trim()) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Name is required' 
+      });
+    }
+
+    if (!gender) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Gender is required' 
+      });
+    }
+
+    // Normalize religionId - convert empty string to null
+    const normalizedReligionId = religionId && religionId.trim() ? religionId : null;
+    
+    // Check if name already exists (case-insensitive exact match)
+    const existingName = await Name.findOne({ name: { $regex: `^${name.trim()}$` } });
     if (existingName) {
       return res.status(400).json({ 
         success: false, 
@@ -170,10 +188,10 @@ exports.createName = async (req, res) => {
     }
     
     const newName = await Name.create({ 
-      name, 
-      description, 
-      religionId, 
-      gender 
+      name: name.trim(), 
+      description: description || '', 
+      religionId: normalizedReligionId, 
+      gender: gender 
     });
     
     res.status(201).json({ 
@@ -182,6 +200,7 @@ exports.createName = async (req, res) => {
       data: newName 
     });
   } catch (error) {
+    console.error('Error creating name:', error);
     res.status(500).json({ 
       success: false, 
       error: error.message || 'Error creating name' 

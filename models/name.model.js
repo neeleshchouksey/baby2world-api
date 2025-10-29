@@ -39,7 +39,8 @@ class Name {
     if (result.rows.length === 0) return null;
     
     const name = new Name(result.rows[0]);
-    name.religion = { name: result.rows[0].religion_name };
+    // Set religion as string instead of object for consistency
+    name.religion = result.rows[0].religion_name || null;
     return name;
   }
 
@@ -137,8 +138,18 @@ class Name {
       let paramCount = 1;
 
       if (conditions.name.$regex) {
-        whereClause += ` AND name ILIKE $${paramCount}`;
-        values.push(conditions.name.$regex);
+        // Handle both partial match (%pattern%) and exact match (^pattern$)
+        const pattern = conditions.name.$regex;
+        // Remove % and ^$ if present for ILIKE
+        const cleanPattern = pattern.replace(/^%|%$/g, '').replace(/^\^|\$$/g, '');
+        if (pattern.startsWith('^') && pattern.endsWith('$')) {
+          // Exact match case-insensitive
+          whereClause += ` AND LOWER(name) = LOWER($${paramCount})`;
+        } else {
+          // Partial match
+          whereClause += ` AND name ILIKE $${paramCount}`;
+        }
+        values.push(cleanPattern);
         paramCount++;
       }
 

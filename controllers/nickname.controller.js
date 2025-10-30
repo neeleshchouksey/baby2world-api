@@ -64,9 +64,8 @@ const getNicknameById = async (req, res) => {
 // Create new nickname (admin only)
 const createNickname = async (req, res) => {
   try {
-    // Check if user is admin
-    const user = await User.findById(req.user.id);
-    if (!user || user.role !== 'admin') {
+    // Check if admin based on JWT payload (after admin split)
+    if (!req.user || req.user.role !== 'admin') {
       return res.status(403).json({ 
         success: false, 
         error: 'Only admins can create nicknames' 
@@ -139,10 +138,8 @@ const createNickname = async (req, res) => {
 // Update nickname (admin only)
 const updateNickname = async (req, res) => {
   try {
-    // Check if user is admin
-    const user = await User.findById(req.user.id);
-    
-    if (!user || user.role !== 'admin') {
+    // Check if admin based on JWT payload
+    if (!req.user || req.user.role !== 'admin') {
       return res.status(403).json({ 
         success: false, 
         error: 'Only admins can update nicknames' 
@@ -221,9 +218,8 @@ const updateNickname = async (req, res) => {
 // Delete nickname (soft delete - admin only)
 const deleteNickname = async (req, res) => {
   try {
-    // Check if user is admin
-    const user = await User.findById(req.user.id);
-    if (!user || user.role !== 'admin') {
+    // Check if admin based on JWT payload
+    if (!req.user || req.user.role !== 'admin') {
       return res.status(403).json({ 
         success: false, 
         error: 'Only admins can delete nicknames' 

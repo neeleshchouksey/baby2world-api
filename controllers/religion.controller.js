@@ -48,9 +48,8 @@ const getReligionById = async (req, res) => {
 // Create new religion (admin only)
 const createReligion = async (req, res) => {
   try {
-    // Check if user is admin
-    const user = await User.findById(req.user.id);
-    if (!user || user.role !== 'admin') {
+    // Check if admin based on JWT payload (after admin split)
+    if (!req.user || req.user.role !== 'admin') {
       return res.status(403).json({ 
         success: false, 
         error: 'Only admins can create religions' 
@@ -121,9 +120,8 @@ const createReligion = async (req, res) => {
 // Update religion (admin only)
 const updateReligion = async (req, res) => {
   try {
-    // Check if user is admin
-    const user = await User.findById(req.user.id);
-    if (!user || user.role !== 'admin') {
+    // Check if admin based on JWT payload
+    if (!req.user || req.user.role !== 'admin') {
       return res.status(403).json({ 
         success: false, 
         error: 'Only admins can update religions' 
@@ -191,9 +189,8 @@ const updateReligion = async (req, res) => {
 // Delete religion (soft delete - admin only)
 const deleteReligion = async (req, res) => {
   try {
-    // Check if user is admin
-    const user = await User.findById(req.user.id);
-    if (!user || user.role !== 'admin') {
+    // Check if admin based on JWT payload
+    if (!req.user || req.user.role !== 'admin') {
       return res.status(403).json({ 
         success: false, 
         error: 'Only admins can delete religions' 

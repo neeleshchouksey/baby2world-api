@@ -1,6 +1,6 @@
 require('dotenv').config();
 const { query } = require('../config/database');
-const User = require('../models/user.model');
+const bcrypt = require('bcryptjs');
 
 async function upsertAdmin() {
   try {
@@ -14,23 +14,33 @@ async function upsertAdmin() {
     console.log(`   🔐 Password: ${adminPassword}`);
     console.log(`   🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
 
+    // Ensure admin_users table exists
+    await query(`
+      CREATE TABLE IF NOT EXISTS admin_users (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        picture VARCHAR(255),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+
     // Delete any existing admin with same email to avoid unique conflicts
-    await query('DELETE FROM users WHERE email = $1', [adminEmail]);
+    await query('DELETE FROM admin_users WHERE email = $1', [adminEmail]);
     console.log('   🗑️  Removed existing admin user');
 
-    const admin = await User.create({
-      name: 'Admin User',
-      email: adminEmail,
-      password: adminPassword,
-      role: 'admin',
-      googleId: null,
-      picture: null,
-    });
+    const hashed = await bcrypt.hash(adminPassword, 10);
+    const result = await query(
+      `INSERT INTO admin_users (name, email, password, picture) VALUES ($1, $2, $3, $4) RETURNING *`,
+      ['Admin User', adminEmail, hashed, null]
+    );
 
+    const admin = result.rows[0];
     console.log('✅ Admin created successfully');
     console.log(`   ID: ${admin.id}`);
     console.log(`   Email: ${admin.email}`);
-    console.log(`   Role: ${admin.role}`);
     
     return admin;
   } catch (err) {

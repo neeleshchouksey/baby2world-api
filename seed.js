@@ -151,8 +151,8 @@ Examples:
   node seed.js status       - Check what data exists
   node seed.js admin        - Create admin user only
 
-Environment: ${config.environment}
-Database: ${config.database.database}
+Environment: ${process.env.NODE_ENV || 'development'}
+Database: ${process.env.DB_NAME || 'babynames_db1'}
         `);
         break;
     }

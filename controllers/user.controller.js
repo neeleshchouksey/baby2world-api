@@ -371,3 +371,74 @@ exports.deleteUser = async (req, res) => {
     res.status(500).json({ success: false, error: 'Server Error' });
   }
 };
+
+// List admins from admin_users table with pagination and optional search
+exports.getAllAdmins = async (req, res) => {
+  try {
+    // Only admins can list admins
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Access denied. Admin only.' });
+    }
+
+    const { page = 1, limit = 50, search = '', sortBy = 'newest' } = req.query;
+    const offset = (page - 1) * limit;
+
+    let whereClause = '';
+    const params = [];
+    let i = 1;
+
+    if (search) {
+      whereClause = `WHERE name ILIKE $${i} OR email ILIKE $${i}`;
+      params.push(`%${search}%`);
+      i++;
+    }
+
+    let orderBy = 'ORDER BY created_at DESC';
+    switch (sortBy) {
+      case 'oldest':
+        orderBy = 'ORDER BY created_at ASC';
+        break;
+      case 'alphabetical':
+        orderBy = 'ORDER BY name ASC';
+        break;
+      default:
+        orderBy = 'ORDER BY created_at DESC';
+    }
+
+    const countResult = await query(`SELECT COUNT(*) FROM admin_users ${whereClause}`, params);
+    const totalAdmins = parseInt(countResult.rows[0].count);
+
+    params.push(parseInt(limit), offset);
+    const adminsResult = await query(`
+      SELECT id, name, email, picture, created_at, updated_at
+      FROM admin_users
+      ${whereClause}
+      ${orderBy}
+      LIMIT $${i} OFFSET $${i + 1}
+    `, params);
+
+    const admins = adminsResult.rows.map(a => ({
+      id: a.id,
+      name: a.name,
+      email: a.email,
+      picture: a.picture,
+      createdAt: a.created_at,
+      updatedAt: a.updated_at
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: admins,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages: Math.ceil(totalAdmins / limit),
+        totalUsers: totalAdmins,
+        hasNext: page < Math.ceil(totalAdmins / limit),
+        hasPrev: page > 1
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching admins:', error);
+    res.status(500).json({ success: false, error: 'Server Error' });
+  }
+};

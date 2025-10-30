@@ -1,4 +1,5 @@
 const User = require('../models/user.model');
+const AdminUser = require('../models/adminUser.model');
 const jwt = require('jsonwebtoken');
 
 // --- HELPER FUNCTION: Common Login Logic ---
@@ -52,9 +53,42 @@ const loginUser = async (req, res, requiredRole) => {
 
 // --- EXPORTED CONTROLLERS ---
 
-// Admin Login Logic
-exports.adminLogin = (req, res) => {
-  loginUser(req, res, 'admin');
+// Admin Login Logic - now uses admin_users table
+exports.adminLogin = async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Email and password are required.' });
+  }
+
+  try {
+    const admin = await AdminUser.findByEmail(email);
+    if (!admin) {
+      return res.status(401).json({ message: 'Invalid credentials.' });
+    }
+
+    const isMatch = await admin.comparePassword(password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid credentials.' });
+    }
+
+    const payload = { id: admin.id, email: admin.email, role: 'admin', name: admin.name };
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error('JWT_SECRET not set in environment variables!');
+      return res.status(500).json({ message: 'Server configuration error' });
+    }
+    const token = require('jsonwebtoken').sign(payload, jwtSecret, { expiresIn: '1d' });
+
+    res.status(200).json({
+      message: 'Logged in successfully!',
+      token,
+      user: admin.toJSON()
+    });
+  } catch (error) {
+    console.error('Admin login error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
 };
 
 // User Login Logic  

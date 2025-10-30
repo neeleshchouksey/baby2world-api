@@ -9,6 +9,7 @@ const auth = require('../middleware/auth.middleware');
 
 // --- IMPORTANT: User model ko yahan import karna zaroori hai ---
 const User = require('../models/user.model'); 
+const AdminUser = require('../models/adminUser.model');
 // ---------------------------------------------------------------
 
 // --- Aapke puraane routes waise hi rahenge ---
@@ -42,19 +43,33 @@ router.get('/google/callback',
 // --- YEH AAPKA NAYA, THEEK KIYA HUA ROUTE HAI ---
 router.get('/me', auth, async (req, res) => {
   try {
-    // Debugging ke liye console log daalein
-    console.log('Inside /me route. User ID from token:', req.user.id);
-
-    // verifyToken middleware se req.user.id milta hai
-    const user = await User.findById(req.user.id);
-    const safe = user ? user.select('-password') : null; // password nahi bhejenge
-
-    if (!user) {
-      console.log('User not found in database for ID:', req.user.id);
-      return res.status(404).json({ success: false, message: 'User not found' });
+    const { id, role } = req.user || {};
+    if (!id) {
+      return res.status(401).json({ success: false, message: 'Invalid token' });
     }
-    
-    // Sab theek hai to user ka data bhej do
+
+    let entity = null;
+    if (role === 'admin') {
+      entity = await AdminUser.findById(id);
+    } else {
+      entity = await User.findById(id);
+    }
+
+    if (!entity) {
+      return res.status(401).json({ success: false, message: 'Invalid token' });
+    }
+
+    // sanitize
+    const safe = {
+      id: entity.id,
+      name: entity.name,
+      email: entity.email,
+      role: role || entity.role,
+      picture: entity.picture,
+      createdAt: entity.createdAt,
+      updatedAt: entity.updatedAt
+    };
+
     res.json({ success: true, user: safe });
 
   } catch (error) {

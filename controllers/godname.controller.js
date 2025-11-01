@@ -59,12 +59,13 @@ exports.createGodName = async (req, res) => {
       });
     }
     
+    // Note: createdBy set to null for admins (admin_users table separate from users)
     const savedGodName = await GodName.create({
       name,
       description,
       religionId,
       subNames: Array.isArray(subNames) ? subNames : [],
-      createdBy: req.userId || (req.user && (req.user.id || req.user.userId))
+      createdBy: null // Admins are in admin_users, not users table
     });
     
     res.status(201).json({

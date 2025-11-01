@@ -97,11 +97,8 @@ const createNickname = async (req, res) => {
         // Reactivate if it was soft deleted
         existingNickname.isActive = true;
         existingNickname.description = description || existingNickname.description;
-        existingNickname.updatedBy = req.user.id;
+        existingNickname.updatedBy = null; // Admins are in admin_users
         await existingNickname.save();
-        
-        await existingNickname.populate('createdBy', 'name email');
-        await existingNickname.populate('updatedBy', 'name email');
         
         return res.status(200).json({
           success: true,
@@ -112,14 +109,12 @@ const createNickname = async (req, res) => {
     }
 
     // Create new nickname
+    // Note: createdBy set to null for admins (admin_users table separate from users)
     const newNickname = await Nickname.create({
       name: name.trim(),
       description: description || '',
-      createdBy: req.user.id
+      createdBy: null // Admins are in admin_users, not users table
     });
-    
-    // Populate creator info before sending response
-    await newNickname.populate('createdBy', 'name email');
 
     res.status(201).json({
       success: true,
@@ -194,12 +189,8 @@ const updateNickname = async (req, res) => {
     nickname.name = name.trim();
     nickname.description = description || '';
     nickname.gender = gender || 'unisex';
-    nickname.updatedBy = req.user.id;
+    nickname.updatedBy = null; // Admins are in admin_users
     await nickname.save();
-
-    // Populate updater info
-    await nickname.populate('createdBy', 'name email');
-    await nickname.populate('updatedBy', 'name email');
 
     res.json({
       success: true,
@@ -238,7 +229,7 @@ const deleteNickname = async (req, res) => {
 
     // Soft delete - just mark as inactive
     nickname.isActive = false;
-    nickname.updatedBy = req.user.id;
+    nickname.updatedBy = null; // Admins are in admin_users
     await nickname.save();
 
     res.json({

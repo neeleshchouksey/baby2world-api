@@ -80,11 +80,8 @@ const createReligion = async (req, res) => {
       } else {
         // Reactivate if it was soft deleted
         existingReligion.isActive = true;
-        existingReligion.updatedBy = req.user.id;
+        existingReligion.updatedBy = null; // Admins are in admin_users
         await existingReligion.save();
-        
-        await existingReligion.populate('createdBy', 'name email');
-        await existingReligion.populate('updatedBy', 'name email');
         
         return res.status(200).json({
           success: true,
@@ -95,13 +92,11 @@ const createReligion = async (req, res) => {
     }
 
     // Create new religion
+    // Note: createdBy set to null for admins (admin_users table separate from users)
     const newReligion = await Religion.create({
       name: name.trim(),
-      createdBy: req.user.id
+      createdBy: null // Admins are in admin_users, not users table
     });
-    
-    // Populate creator info before sending response
-    await newReligion.populate('createdBy', 'name email');
 
     res.status(201).json({
       success: true,
@@ -165,12 +160,8 @@ const updateReligion = async (req, res) => {
 
     // Update religion
     religion.name = name.trim();
-    religion.updatedBy = req.user.id;
+    religion.updatedBy = null; // Admins are in admin_users
     await religion.save();
-
-    // Populate updater info
-    await religion.populate('createdBy', 'name email');
-    await religion.populate('updatedBy', 'name email');
 
     res.json({
       success: true,
@@ -209,7 +200,7 @@ const deleteReligion = async (req, res) => {
 
     // Soft delete - just mark as inactive
     religion.isActive = false;
-    religion.updatedBy = req.user.id;
+    religion.updatedBy = null; // Admins are in admin_users
     await religion.save();
 
     res.json({

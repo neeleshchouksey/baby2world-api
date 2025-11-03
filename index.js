@@ -8,6 +8,7 @@ const nameRoutes = require('./routes/name.routes');
 const godNameRoutes = require('./routes/godname.routes');
 const userRoutes = require('./routes/user.routes')
 const nicknameRoutes = require('./routes/nickname.routes');
+const subGodNameRoutes = require('./routes/subgodname.routes');
 require('dotenv').config();
 
 // Passport Config (yeh line passport-setup.js file ko execute karti hai)
@@ -15,6 +16,7 @@ require('./config/passport-setup');
 
 const authRoutes = require('./routes/auth.routes');
 const csvImportRoutes = require('./routes/csvImport.routes');
+const termsAndConditionsRoutes = require('./routes/termsAndConditions.routes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -66,7 +68,9 @@ app.use('/api/names', nameRoutes);
 app.use('/api/god-names', godNameRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/nicknames', nicknameRoutes);
+app.use('/api/subgodnames', subGodNameRoutes);
 app.use('/api/csv-import', csvImportRoutes);
+app.use('/api/terms-and-conditions', termsAndConditionsRoutes);
 // Test route to check if server is running
 app.get('/', (req, res) => {
   res.json({ message: 'Server is running!' });

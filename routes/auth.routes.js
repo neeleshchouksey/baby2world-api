@@ -24,19 +24,41 @@ router.get('/google', passport.authenticate('google', {
 }));
 
 router.get('/google/callback', 
-    passport.authenticate('google', { 
-        failureRedirect: process.env.NODE_ENV === 'production' 
-            ? 'https://baby2world.com/user/login' 
-            : 'http://localhost:3000/user/login', 
-        session: false 
-    }),
-    (req, res) => {
-        const payload = { id: req.user.id, email: req.user.email, role: req.user.role };
-        const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
-        const successUrl = process.env.NODE_ENV === 'production' 
-            ? 'https://baby2world.com/login/success'
-            : 'http://localhost:3000/login/success';
-        res.redirect(`${successUrl}?token=${token}`);
+    (req, res, next) => {
+        passport.authenticate('google', { 
+            session: false 
+        }, (err, user, info) => {
+            const loginUrl = process.env.NODE_ENV === 'production' 
+                ? 'https://baby2world.com/user/login' 
+                : 'http://localhost:3000/user/login';
+            
+            // Handle authentication errors
+            if (err) {
+                // Check if error is about deactivated account
+                if (err.message && err.message.includes('deactivated')) {
+                    return res.redirect(`${loginUrl}?error=account_deactivated&message=${encodeURIComponent('Your account has been deactivated. Please contact administrator.')}`);
+                }
+                // Other errors
+                return res.redirect(`${loginUrl}?error=login_failed&message=${encodeURIComponent(err.message || 'Login failed. Please try again.')}`);
+            }
+            
+            if (!user) {
+                return res.redirect(`${loginUrl}?error=login_failed&message=${encodeURIComponent('Authentication failed. Please try again.')}`);
+            }
+            
+            // Check if user is active before allowing login
+            if (user.isActive === false) {
+                return res.redirect(`${loginUrl}?error=account_deactivated&message=${encodeURIComponent('Your account has been deactivated. Please contact administrator.')}`);
+            }
+            
+            // Success - generate token and redirect
+            const payload = { id: user.id, email: user.email, role: user.role };
+            const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
+            const successUrl = process.env.NODE_ENV === 'production' 
+                ? 'https://baby2world.com/login/success'
+                : 'http://localhost:3000/login/success';
+            res.redirect(`${successUrl}?token=${token}`);
+        })(req, res, next);
     }
 );
 

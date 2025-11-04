@@ -20,6 +20,11 @@ const loginUser = async (req, res, requiredRole) => {
       return res.status(403).json({ message: `Access denied. This login is for ${requiredRole}s only.` });
     }
 
+    // Check if user is active (only for regular users)
+    if (requiredRole === 'user' && user.isActive === false) {
+      return res.status(403).json({ message: 'Your account has been deactivated. Please contact administrator.' });
+    }
+
     const isMatch = await user.comparePassword(password);
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid credentials.' });

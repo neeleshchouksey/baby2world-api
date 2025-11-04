@@ -10,6 +10,7 @@ class User {
     this.picture = data.picture;
     this.password = data.password;
     this.role = data.role;
+    this.isActive = data.is_active !== undefined ? data.is_active : true; // Default to true if null
     this.createdAt = data.created_at;
     this.updatedAt = data.updated_at;
   }

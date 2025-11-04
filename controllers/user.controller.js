@@ -278,16 +278,34 @@ exports.getAllUsers = async (req, res) => {
         break;
     }
 
+    // Filter by status if provided
+    if (req.query.status) {
+      const statusFilter = req.query.status === 'active' ? true : req.query.status === 'inactive' ? false : null;
+      if (statusFilter !== null) {
+        if (whereClause) {
+          whereClause += ` AND COALESCE(is_active, true) = $${paramCount}`;
+        } else {
+          whereClause = `WHERE COALESCE(is_active, true) = $${paramCount}`;
+        }
+        queryParams.push(statusFilter);
+        paramCount++;
+      }
+    }
+
+    // Build count query with same filters
+    const countWhereClause = whereClause || '';
+    const countParams = [...queryParams];
+    
     // Get total count
-    const countQuery = `SELECT COUNT(*) FROM users ${whereClause}`;
-    const countResult = await query(countQuery, queryParams);
+    const countQuery = `SELECT COUNT(*) FROM users ${countWhereClause}`;
+    const countResult = await query(countQuery, countParams);
     const totalUsers = parseInt(countResult.rows[0].count);
 
     // Get users with pagination
     const usersQuery = `
-      SELECT id, name, email, role, created_at, updated_at, picture
+      SELECT id, name, email, role, created_at, updated_at, picture, COALESCE(is_active, true) as is_active
       FROM users 
-      ${whereClause}
+      ${whereClause || ''}
       ${orderBy}
       LIMIT $${paramCount} OFFSET $${paramCount + 1}
     `;
@@ -302,7 +320,8 @@ exports.getAllUsers = async (req, res) => {
       role: user.role,
       createdAt: user.created_at,
       updatedAt: user.updated_at,
-      picture: user.picture
+      picture: user.picture,
+      isActive: user.is_active !== undefined ? user.is_active : true
     }));
 
     res.status(200).json({
@@ -368,6 +387,51 @@ exports.deleteUser = async (req, res) => {
 
   } catch (error) {
     console.error("Error deleting user:", error);
+    res.status(500).json({ success: false, error: 'Server Error' });
+  }
+};
+
+/**
+ * @desc    Deactivate/Activate a user (Admin only)
+ * @route   PATCH /api/user/:userId/status
+ * @access  Private (Admin)
+ */
+exports.updateUserStatus = async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Access denied. Admin only.' });
+    }
+
+    const { userId } = req.params;
+    const { isActive } = req.body;
+    const userIdInt = parseInt(userId);
+
+    if (isNaN(userIdInt) || userIdInt <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid User ID format' });
+    }
+
+    // Don't allow admin to deactivate themselves
+    if (userIdInt === req.user.id) {
+      return res.status(400).json({ success: false, message: 'Cannot deactivate your own account' });
+    }
+
+    // Check if user exists
+    const user = await User.findById(userIdInt);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    // Update user status
+    await query('UPDATE users SET is_active = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [isActive, userIdInt]);
+
+    res.status(200).json({
+      success: true,
+      message: `User ${isActive ? 'activated' : 'deactivated'} successfully`
+    });
+
+  } catch (error) {
+    console.error("Error updating user status:", error);
     res.status(500).json({ success: false, error: 'Server Error' });
   }
 };

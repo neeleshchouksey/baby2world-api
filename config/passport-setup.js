@@ -18,6 +18,10 @@ passport.use(
         let user = await User.findByGoogleId(profile.id);
 
         if (user) {
+          // Check if user is active
+          if (user.isActive === false) {
+            return done(new Error('Your account has been deactivated. Please contact administrator.'), null);
+          }
           return done(null, user);
         }
 

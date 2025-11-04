@@ -7,9 +7,17 @@ const getAllNicknames = async (req, res) => {
     const { search, letter, gender } = req.query;
     const filterQuery = { isActive: true };
     
-    // Gender filter functionality
+    // Gender filter functionality - map frontend values to database values
     if (gender) {
-      filterQuery.gender = gender.toLowerCase();
+      if (gender.toLowerCase() === 'boy') {
+        filterQuery.gender = 'male';
+        filterQuery.includeUnisex = true; // Include unisex when filtering by boy
+      } else if (gender.toLowerCase() === 'girl') {
+        filterQuery.gender = 'female';
+        filterQuery.includeUnisex = true; // Include unisex when filtering by girl
+      } else {
+        filterQuery.gender = gender.toLowerCase();
+      }
     }
     
     // Search functionality
@@ -20,7 +28,9 @@ const getAllNicknames = async (req, res) => {
       filterQuery.name = { $regex: `${letter}%` };
     }
     
+    console.log('Nickname filterQuery:', JSON.stringify(filterQuery, null, 2));
     const nicknames = await Nickname.find(filterQuery, { sort: { name: 1 } });
+    console.log('Nicknames found:', nicknames.length);
     
     res.json({
       success: true,

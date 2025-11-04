@@ -65,9 +65,22 @@ exports.getAllNames = async (req, res) => {
     let paramIndex = 1;
     
     if (filterQuery.gender) {
-      whereClause += ` AND LOWER(gender) = LOWER($${paramIndex})`;
-      params.push(filterQuery.gender);
-      paramIndex++;
+      // Include unisex names when filtering by male or female
+      if (filterQuery.gender === 'male') {
+        whereClause += ` AND (LOWER(n.gender) = LOWER($${paramIndex}) OR LOWER(n.gender) = 'unisex')`;
+        params.push(filterQuery.gender);
+        console.log('Adding WHERE clause for male + unisex:', whereClause);
+        paramIndex++;
+      } else if (filterQuery.gender === 'female') {
+        whereClause += ` AND (LOWER(n.gender) = LOWER($${paramIndex}) OR LOWER(n.gender) = 'unisex')`;
+        params.push(filterQuery.gender);
+        console.log('Adding WHERE clause for female + unisex:', whereClause);
+        paramIndex++;
+      } else {
+        whereClause += ` AND LOWER(n.gender) = LOWER($${paramIndex})`;
+        params.push(filterQuery.gender);
+        paramIndex++;
+      }
     }
     
     if (filterQuery.religionId) {
@@ -86,10 +99,13 @@ exports.getAllNames = async (req, res) => {
       paramIndex++;
     }
     
-    // Get total count
+    // Get total count (using same whereClause which includes unisex logic)
+    console.log('Final WHERE clause:', whereClause);
+    console.log('Final params:', params);
     const countResult = await query(`SELECT COUNT(*) as total FROM names n ${whereClause}`, params);
     const totalNames = parseInt(countResult.rows[0].total);
     const totalPages = Math.ceil(totalNames / limit);
+    console.log('Total names found:', totalNames);
     
     // Get names with pagination
     const offset = (page - 1) * limit;
@@ -101,9 +117,12 @@ exports.getAllNames = async (req, res) => {
       ORDER BY n.name ASC 
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
     `;
-    params.push(limit, offset);
+    const queryParams = [...params]; // Copy params for query
+    queryParams.push(limit, offset);
+    console.log('Names query:', namesQuery);
+    console.log('Query params:', queryParams);
     
-    const namesResult = await query(namesQuery, params);
+    const namesResult = await query(namesQuery, queryParams);
     const names = namesResult.rows.map(row => new Name({
       id: row.id,
       name: row.name,

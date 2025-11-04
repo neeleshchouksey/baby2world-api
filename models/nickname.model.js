@@ -79,9 +79,16 @@ class Nickname {
     }
 
     if (filterQuery.gender) {
-      whereClause += ` AND n.gender = $${paramCount}`;
-      values.push(filterQuery.gender);
-      paramCount++;
+      // Include unisex names when filtering by male or female (always include unisex)
+      if (filterQuery.gender === 'male' || filterQuery.gender === 'female') {
+        whereClause += ` AND (LOWER(n.gender) = LOWER($${paramCount}) OR LOWER(n.gender) = 'unisex')`;
+        values.push(filterQuery.gender);
+        paramCount++;
+      } else {
+        whereClause += ` AND LOWER(n.gender) = LOWER($${paramCount})`;
+        values.push(filterQuery.gender);
+        paramCount++;
+      }
     }
 
     // Build ORDER BY clause

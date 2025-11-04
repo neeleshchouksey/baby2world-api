@@ -1,4 +1,5 @@
 const SubGodName = require('../models/subGodName.model');
+const { query } = require('../config/database');
 
 // Get all sub god names with pagination and search
 exports.getAllSubGodNames = async (req, res) => {
@@ -128,6 +129,25 @@ exports.createSubGodName = async (req, res) => {
       createdBy: null // Admins are in admin_users, not users table
     });
     
+    // Also add to god_name_sub_names table for user dashboard display
+    try {
+      // Check if already exists in god_name_sub_names
+      const existingCheck = await query(
+        'SELECT 1 FROM god_name_sub_names WHERE god_name_id = $1 AND LOWER(sub_name) = LOWER($2)',
+        [parseInt(godNameId), name.trim()]
+      );
+      
+      if (existingCheck.rows.length === 0) {
+        await query(
+          'INSERT INTO god_name_sub_names (god_name_id, sub_name) VALUES ($1, $2)',
+          [parseInt(godNameId), name.trim()]
+        );
+      }
+    } catch (syncError) {
+      console.error('Error syncing to god_name_sub_names:', syncError);
+      // Don't fail the request if sync fails, just log it
+    }
+    
     res.status(201).json({
       success: true,
       message: 'Sub god name created successfully',
@@ -177,6 +197,15 @@ exports.updateSubGodName = async (req, res) => {
       updateData.godNameId = parseInt(godNameId);
     }
 
+    // Get the old sub god name before updating
+    const oldSubGodName = await SubGodName.findById(req.params.id);
+    if (!oldSubGodName) {
+      return res.status(404).json({
+        success: false,
+        error: 'Sub god name not found'
+      });
+    }
+
     const updatedSubGodName = await SubGodName.findByIdAndUpdate(
       req.params.id,
       updateData
@@ -187,6 +216,44 @@ exports.updateSubGodName = async (req, res) => {
         success: false,
         error: 'Sub god name not found'
       });
+    }
+    
+    // Sync with god_name_sub_names table
+    try {
+      const finalGodNameId = parseInt(godNameId || oldSubGodName.godNameId);
+      const oldName = oldSubGodName.name.trim();
+      const newName = name.trim();
+      
+      // If name changed, update in god_name_sub_names
+      if (oldName.toLowerCase() !== newName.toLowerCase()) {
+        // Remove old entry
+        await query(
+          'DELETE FROM god_name_sub_names WHERE god_name_id = $1 AND LOWER(sub_name) = LOWER($2)',
+          [finalGodNameId, oldName]
+        );
+        
+        // Add new entry (if it doesn't exist)
+        const existingCheck = await query(
+          'SELECT 1 FROM god_name_sub_names WHERE god_name_id = $1 AND LOWER(sub_name) = LOWER($2)',
+          [finalGodNameId, newName]
+        );
+        
+        if (existingCheck.rows.length === 0) {
+          await query(
+            'INSERT INTO god_name_sub_names (god_name_id, sub_name) VALUES ($1, $2)',
+            [finalGodNameId, newName]
+          );
+        }
+      } else if (godNameId && parseInt(godNameId) !== oldSubGodName.godNameId) {
+        // If god name ID changed, update the entry
+        await query(
+          'UPDATE god_name_sub_names SET god_name_id = $1 WHERE god_name_id = $2 AND LOWER(sub_name) = LOWER($3)',
+          [finalGodNameId, oldSubGodName.godNameId, newName]
+        );
+      }
+    } catch (syncError) {
+      console.error('Error syncing to god_name_sub_names on update:', syncError);
+      // Don't fail the request if sync fails, just log it
     }
     
     res.json({
@@ -205,13 +272,27 @@ exports.updateSubGodName = async (req, res) => {
 // Delete sub god name
 exports.deleteSubGodName = async (req, res) => {
   try {
-    const deletedSubGodName = await SubGodName.findByIdAndDelete(req.params.id);
+    // Get the sub god name before deleting
+    const subGodNameToDelete = await SubGodName.findById(req.params.id);
     
-    if (!deletedSubGodName) {
+    if (!subGodNameToDelete) {
       return res.status(404).json({
         success: false,
         error: 'Sub god name not found'
       });
+    }
+    
+    const deletedSubGodName = await SubGodName.findByIdAndDelete(req.params.id);
+    
+    // Also remove from god_name_sub_names table
+    try {
+      await query(
+        'DELETE FROM god_name_sub_names WHERE god_name_id = $1 AND LOWER(sub_name) = LOWER($2)',
+        [subGodNameToDelete.godNameId, subGodNameToDelete.name.trim()]
+      );
+    } catch (syncError) {
+      console.error('Error syncing deletion to god_name_sub_names:', syncError);
+      // Don't fail the request if sync fails, just log it
     }
     
     res.json({

@@ -55,9 +55,16 @@ class Name {
 
     // Build WHERE clause based on filterQuery
     if (filterQuery.gender) {
-      whereClause += ` AND n.gender = $${paramCount}`;
-      values.push(filterQuery.gender);
-      paramCount++;
+      // Include unisex names when filtering by male or female
+      if (filterQuery.gender === 'male' || filterQuery.gender === 'female') {
+        whereClause += ` AND (LOWER(n.gender) = LOWER($${paramCount}) OR LOWER(n.gender) = 'unisex')`;
+        values.push(filterQuery.gender);
+        paramCount++;
+      } else {
+        whereClause += ` AND LOWER(n.gender) = LOWER($${paramCount})`;
+        values.push(filterQuery.gender);
+        paramCount++;
+      }
     }
 
     if (filterQuery.religionId) {
@@ -107,9 +114,16 @@ class Name {
     let paramCount = 1;
 
     if (filterQuery.gender) {
-      whereClause += ` AND gender = $${paramCount}`;
-      values.push(filterQuery.gender);
-      paramCount++;
+      // Include unisex names when filtering by male or female
+      if (filterQuery.gender === 'male' || filterQuery.gender === 'female') {
+        whereClause += ` AND (LOWER(gender) = LOWER($${paramCount}) OR LOWER(gender) = 'unisex')`;
+        values.push(filterQuery.gender);
+        paramCount++;
+      } else {
+        whereClause += ` AND LOWER(gender) = LOWER($${paramCount})`;
+        values.push(filterQuery.gender);
+        paramCount++;
+      }
     }
 
     if (filterQuery.religionId) {

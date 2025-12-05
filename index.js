@@ -23,9 +23,18 @@ const PORT = process.env.PORT || 5000;
 const HOST = process.env.HOST || '0.0.0.0';
 
 // CORS Configuration - Environment based
-const corsOrigins = process.env.NODE_ENV === 'production' 
-  ? ['https://baby2world.com', 'https://www.baby2world.com']
-  : ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000'];
+let corsOrigins;
+if (process.env.NODE_ENV === 'production') {
+  corsOrigins = ['https://baby2world.com', 'https://www.baby2world.com'];
+} else if (process.env.NODE_ENV === 'staging') {
+  // Support both environment variable and default staging URLs
+  const stagingOrigins = process.env.CORS_ORIGINS 
+    ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
+    : ['https://staging.baby2world.com', 'https://www-staging.baby2world.com'];
+  corsOrigins = stagingOrigins;
+} else {
+  corsOrigins = ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000'];
+}
 
 app.use(cors({
   origin: corsOrigins,

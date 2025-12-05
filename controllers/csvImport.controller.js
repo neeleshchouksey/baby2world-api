@@ -84,7 +84,7 @@ exports.uploadCSV = async (req, res) => {
 exports.getMappingFields = async (req, res) => {
   try {
     // Get available religions for mapping
-    const religionsResult = await query('SELECT id, name FROM religions WHERE is_active = true ORDER BY name');
+    const religionsResult = await query('SELECT id, name FROM religions WHERE "isActive" = true ORDER BY name');
     
     const mappingFields = {
       required: [
@@ -93,7 +93,7 @@ exports.getMappingFields = async (req, res) => {
       ],
       optional: [
         { field: 'description', label: 'Description', type: 'text', required: false },
-        { field: 'religion_id', label: 'Religion', type: 'select', required: false, options: religionsResult.rows }
+        { field: 'religionId', label: 'Religion', type: 'select', required: false, options: religionsResult.rows }
       ]
     };
 
@@ -234,7 +234,7 @@ exports.processImport = async (req, res) => {
           name: row[columnMapping.name]?.trim(),
           gender: columnMapping.gender === 'auto' ? 'unisex' : row[columnMapping.gender]?.trim(),
           description: columnMapping.description ? row[columnMapping.description]?.trim() : '',
-          religion_id: columnMapping.religion_id ? row[columnMapping.religion_id] : null
+          religionId: columnMapping.religionId || columnMapping.religion_id ? (row[columnMapping.religionId] || row[columnMapping.religion_id]) : null
         };
 
         // Validate required fields
@@ -263,41 +263,42 @@ exports.processImport = async (req, res) => {
           console.log(`Row ${rowNumber}: Using mapped gender for "${nameData.name}": ${normalizedGender} (from "${nameData.gender}")`);
         }
 
-        // Handle religion mapping - religion_id is REQUIRED
-        if (nameData.religion_id) {
-          // If religion_id is a string (religion name), find the ID
-          if (isNaN(nameData.religion_id)) {
+        // Handle religion mapping - religionId is REQUIRED
+        const religionValue = nameData.religionId;
+        if (religionValue) {
+          // If religionId is a string (religion name), find the ID
+          if (isNaN(religionValue)) {
             // Try multiple religion matching strategies
             let religionResult = await query(
-              'SELECT id, name FROM religions WHERE LOWER(name) = LOWER($1) AND is_active = true',
-              [nameData.religion_id]
+              'SELECT id, name FROM religions WHERE LOWER(name) = LOWER($1) AND "isActive" = true',
+              [religionValue]
             );
             
             // If exact match not found, try partial match
             if (religionResult.rows.length === 0) {
               religionResult = await query(
-                'SELECT id, name FROM religions WHERE LOWER(name) LIKE LOWER($1) AND is_active = true',
-                [`%${nameData.religion_id}%`]
+                'SELECT id, name FROM religions WHERE LOWER(name) LIKE LOWER($1) AND "isActive" = true',
+                [`%${religionValue}%`]
               );
             }
             
             // If still not found, try common variations
             if (religionResult.rows.length === 0) {
-              const religionVariations = getReligionVariations(nameData.religion_id);
+              const religionVariations = getReligionVariations(religionValue);
               for (const variation of religionVariations) {
                 religionResult = await query(
-                  'SELECT id, name FROM religions WHERE LOWER(name) = LOWER($1) AND is_active = true',
+                  'SELECT id, name FROM religions WHERE LOWER(name) = LOWER($1) AND "isActive" = true',
                   [variation]
                 );
                 if (religionResult.rows.length > 0) break;
               }
             }
             if (religionResult.rows.length > 0) {
-              nameData.religion_id = religionResult.rows[0].id;
-              console.log(`Row ${rowNumber}: Religion matched "${religionResult.rows[0].name}" (ID: ${nameData.religion_id}) for input "${nameData.religion_id}"`);
+              nameData.religionId = religionResult.rows[0].id;
+              console.log(`Row ${rowNumber}: Religion matched "${religionResult.rows[0].name}" (ID: ${nameData.religionId}) for input "${religionValue}"`);
             } else {
               // If religion not found, skip this row
-              console.log(`Row ${rowNumber}: Religion "${nameData.religion_id}" not found, skipping`);
+              console.log(`Row ${rowNumber}: Religion "${religionValue}" not found, skipping`);
               results.skipped.push({
                 row: rowNumber,
                 name: nameData.name,
@@ -305,11 +306,13 @@ exports.processImport = async (req, res) => {
               });
               continue;
             }
+          } else {
+            nameData.religionId = parseInt(religionValue);
           }
         } else {
           // If no religion provided, leave it null (database will use default)
           console.log(`Row ${rowNumber}: No religion provided, using database default`);
-          nameData.religion_id = null; // Let database handle the default
+          nameData.religionId = null; // Let database handle the default
         }
 
         // Check for duplicates using pre-fetched names (much faster)
@@ -332,10 +335,10 @@ exports.processImport = async (req, res) => {
             try {
               const updateResult = await query(`
                 UPDATE names 
-                SET description = $1, religion_id = $2, gender = $3, updated_at = CURRENT_TIMESTAMP
+                SET description = $1, "religionId" = $2, gender = $3, "updatedAt" = CURRENT_TIMESTAMP
                 WHERE LOWER(name) = LOWER($4)
                 RETURNING id
-              `, [nameData.description || '', nameData.religion_id, nameData.gender, nameData.name]);
+              `, [nameData.description || '', nameData.religionId, nameData.gender, nameData.name]);
               
               console.log('Name updated successfully:', updateResult.rows[0]);
               results.successful.push({ 
@@ -367,13 +370,13 @@ exports.processImport = async (req, res) => {
         // Insert the name
         console.log('Inserting name:', nameData); // Debug log
         const insertResult = await query(`
-          INSERT INTO names (name, description, religion_id, gender)
+          INSERT INTO names (name, description, "religionId", gender)
           VALUES ($1, $2, $3, $4)
           RETURNING id
         `, [
           nameData.name,
           nameData.description || '',
-          nameData.religion_id,
+          nameData.religionId,
           nameData.gender
         ]);
 
@@ -406,9 +409,9 @@ exports.processImport = async (req, res) => {
     // Update import record
     await query(`
       UPDATE csv_imports 
-      SET successful_rows = $1, failed_rows = $2, skipped_rows = $3, 
-          import_status = 'completed', completed_at = CURRENT_TIMESTAMP,
-          error_log = $4
+      SET "successfulRows" = $1, "failedRows" = $2, "skippedRows" = $3, 
+          "importStatus" = 'completed', "completedAt" = CURRENT_TIMESTAMP,
+          "errorLog" = $4
       WHERE id = $5
     `, [
       results.successful.length,
@@ -440,8 +443,8 @@ exports.processImport = async (req, res) => {
       try {
         await query(`
           UPDATE csv_imports 
-          SET import_status = 'failed', completed_at = CURRENT_TIMESTAMP,
-              error_log = $1
+          SET "importStatus" = 'failed', "completedAt" = CURRENT_TIMESTAMP,
+              "errorLog" = $1
           WHERE id = $2
         `, [error.message, importId]);
       } catch (updateError) {
@@ -466,8 +469,8 @@ exports.getImportHistory = async (req, res) => {
     const result = await query(`
       SELECT ci.*, u.name as imported_by_name
       FROM csv_imports ci
-      LEFT JOIN users u ON ci.imported_by = u.id
-      ORDER BY ci.created_at DESC
+      LEFT JOIN users u ON ci."importedBy" = u.id
+      ORDER BY ci."createdAt" DESC
       LIMIT $1 OFFSET $2
     `, [limit, offset]);
 

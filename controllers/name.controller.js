@@ -84,7 +84,7 @@ exports.getAllNames = async (req, res) => {
     }
     
     if (filterQuery.religionId) {
-      whereClause += ` AND religion_id = $${paramIndex}`;
+      whereClause += ` AND n."religionId" = $${paramIndex}`;
       params.push(filterQuery.religionId);
       paramIndex++;
     }
@@ -112,7 +112,7 @@ exports.getAllNames = async (req, res) => {
     const namesQuery = `
       SELECT n.*, r.name as religion_name 
       FROM names n 
-      LEFT JOIN religions r ON n.religion_id = r.id 
+      LEFT JOIN religions r ON n."religionId" = r.id
       ${whereClause} 
       ORDER BY n.name ASC 
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -127,10 +127,10 @@ exports.getAllNames = async (req, res) => {
       id: row.id,
       name: row.name,
       description: row.description,
-      religion_id: row.religion_id,
+      religionId: row.religionId,
       gender: row.gender,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
       religion: row.religion_name
     }));
     

@@ -5,11 +5,11 @@ class GodName {
     this.id = data.id;
     this.name = data.name;
     this.description = data.description;
-    this.religionId = data.religion_id;
-    this.createdBy = data.created_by;
-    this.createdAt = data.created_at;
-    this.updatedAt = data.updated_at;
-    this.subNames = data.sub_names || [];
+    this.religionId = data.religionId || data.religion_id;
+    this.createdBy = data.createdBy || data.created_by;
+    this.createdAt = data.createdAt || data.created_at;
+    this.updatedAt = data.updatedAt || data.updated_at;
+    this.subNames = data.subNames || data.sub_names || [];
     // For populated data
     this.religion = data.religion;
   }
@@ -23,7 +23,7 @@ class GodName {
       await client.query('BEGIN');
 
       const result = await client.query(
-        `INSERT INTO god_names (name, description, religion_id, created_by) 
+        `INSERT INTO god_names (name, description, "religionId", "createdBy") 
          VALUES ($1, $2, $3, $4) 
          RETURNING *`,
         [name, description, religionId, createdBy]
@@ -34,7 +34,7 @@ class GodName {
       if (subNames.length > 0) {
         for (const subName of subNames) {
           await client.query(
-            'INSERT INTO god_name_sub_names (god_name_id, sub_name) VALUES ($1, $2)',
+            'INSERT INTO god_name_sub_names ("godNameId", "subName") VALUES ($1, $2)',
             [godName.id, subName]
           );
         }
@@ -56,7 +56,7 @@ class GodName {
     const result = await query(`
       SELECT gn.*, r.name as religion_name 
       FROM god_names gn
-      LEFT JOIN religions r ON gn.religion_id = r.id
+      LEFT JOIN religions r ON gn."religionId" = r.id
       WHERE gn.id = $1
     `, [id]);
     
@@ -67,10 +67,10 @@ class GodName {
 
     // Get sub names
     const subNamesResult = await query(
-      'SELECT sub_name FROM god_name_sub_names WHERE god_name_id = $1 ORDER BY created_at',
+      'SELECT "subName" FROM god_name_sub_names WHERE "godNameId" = $1 ORDER BY "createdAt"',
       [id]
     );
-    godName.subNames = subNamesResult.rows.map(row => row.sub_name);
+    godName.subNames = subNamesResult.rows.map(row => row.subName);
 
     return godName;
   }
@@ -84,7 +84,7 @@ class GodName {
     let paramCount = 1;
 
     if (filterQuery.religionId) {
-      whereClause += ` AND gn.religion_id = $${paramCount}`;
+      whereClause += ` AND gn."religionId" = $${paramCount}`;
       values.push(filterQuery.religionId);
       paramCount++;
     }
@@ -106,7 +106,7 @@ class GodName {
     const queryText = `
       SELECT gn.*, r.name as religion_name 
       FROM god_names gn
-      LEFT JOIN religions r ON gn.religion_id = r.id
+      LEFT JOIN religions r ON gn."religionId" = r.id
       ${whereClause}
       ${orderBy}
     `;
@@ -120,10 +120,10 @@ class GodName {
 
       // Get sub names for each god name
       const subNamesResult = await query(
-        'SELECT sub_name FROM god_name_sub_names WHERE god_name_id = $1 ORDER BY created_at',
+        'SELECT "subName" FROM god_name_sub_names WHERE "godNameId" = $1 ORDER BY "createdAt"',
         [godName.id]
       );
-      godName.subNames = subNamesResult.rows.map(subRow => subRow.sub_name);
+      godName.subNames = subNamesResult.rows.map(subRow => subRow.subName);
 
       godNames.push(godName);
     }
@@ -146,7 +146,7 @@ class GodName {
     }
 
     if (conditions.religionId) {
-      whereClause += ` AND religion_id = $${paramCount}`;
+      whereClause += ` AND "religionId" = $${paramCount}`;
       values.push(conditions.religionId);
       paramCount++;
     }
@@ -158,10 +158,10 @@ class GodName {
 
     // Get sub names
     const subNamesResult = await query(
-      'SELECT sub_name FROM god_name_sub_names WHERE god_name_id = $1 ORDER BY created_at',
+      'SELECT "subName" FROM god_name_sub_names WHERE "godNameId" = $1 ORDER BY "createdAt"',
       [godName.id]
     );
-    godName.subNames = subNamesResult.rows.map(row => row.sub_name);
+    godName.subNames = subNamesResult.rows.map(row => row.subName);
 
     return godName;
   }
@@ -178,11 +178,11 @@ class GodName {
 
       for (const [key, value] of Object.entries(updateData)) {
         if (key === 'religionId') {
-          fields.push(`religion_id = $${paramCount}`);
+          fields.push(`"religionId" = $${paramCount}`);
         } else if (key === 'subNames') {
           continue; // handled separately
         } else {
-          fields.push(`${key} = $${paramCount}`);
+          fields.push(`"${key}" = $${paramCount}`);
         }
         values.push(value);
         paramCount++;
@@ -200,20 +200,20 @@ class GodName {
       const godName = new GodName(result.rows[0]);
 
       if (Array.isArray(updateData.subNames)) {
-        await client.query('DELETE FROM god_name_sub_names WHERE god_name_id = $1', [id]);
+        await client.query('DELETE FROM god_name_sub_names WHERE "godNameId" = $1', [id]);
         for (const subName of updateData.subNames) {
           await client.query(
-            'INSERT INTO god_name_sub_names (god_name_id, sub_name) VALUES ($1, $2)',
+            'INSERT INTO god_name_sub_names ("godNameId", "subName") VALUES ($1, $2)',
             [id, subName]
           );
         }
         godName.subNames = updateData.subNames;
       } else {
         const subNamesResult = await client.query(
-          'SELECT sub_name FROM god_name_sub_names WHERE god_name_id = $1 ORDER BY created_at',
+          'SELECT "subName" FROM god_name_sub_names WHERE "godNameId" = $1 ORDER BY "createdAt"',
           [id]
         );
-        godName.subNames = subNamesResult.rows.map(row => row.sub_name);
+        godName.subNames = subNamesResult.rows.map(row => row.subName);
       }
 
       await client.query('COMMIT');
@@ -229,7 +229,7 @@ class GodName {
   // Static method to find and delete
   static async findByIdAndDelete(id) {
     // Delete sub names first
-    await query('DELETE FROM god_name_sub_names WHERE god_name_id = $1', [id]);
+    await query('DELETE FROM god_name_sub_names WHERE "godNameId" = $1', [id]);
     
     const result = await query('DELETE FROM god_names WHERE id = $1 RETURNING *', [id]);
     return result.rows.length > 0 ? new GodName(result.rows[0]) : null;
@@ -239,7 +239,7 @@ class GodName {
   async addSubName(subName) {
     // Check if sub name already exists
     const existing = await query(
-      'SELECT 1 FROM god_name_sub_names WHERE god_name_id = $1 AND sub_name = $2',
+      'SELECT 1 FROM god_name_sub_names WHERE "godNameId" = $1 AND "subName" = $2',
       [this.id, subName]
     );
 
@@ -248,7 +248,7 @@ class GodName {
     }
 
     await query(
-      'INSERT INTO god_name_sub_names (god_name_id, sub_name) VALUES ($1, $2)',
+      'INSERT INTO god_name_sub_names ("godNameId", "subName") VALUES ($1, $2)',
       [this.id, subName]
     );
 
@@ -259,7 +259,7 @@ class GodName {
   // Instance method to remove sub name
   async removeSubName(subName) {
     await query(
-      'DELETE FROM god_name_sub_names WHERE god_name_id = $1 AND sub_name = $2',
+      'DELETE FROM god_name_sub_names WHERE "godNameId" = $1 AND "subName" = $2',
       [this.id, subName]
     );
 
@@ -270,7 +270,7 @@ class GodName {
   // Instance method to save god name
   async save() {
     const result = await query(
-      `UPDATE god_names SET name = $1, description = $2, religion_id = $3 
+      `UPDATE god_names SET name = $1, description = $2, "religionId" = $3 
        WHERE id = $4 RETURNING *`,
       [this.name, this.description, this.religionId, this.id]
     );

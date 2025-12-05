@@ -5,10 +5,10 @@ class Name {
     this.id = data.id;
     this.name = data.name;
     this.description = data.description;
-    this.religionId = data.religion_id;
+    this.religionId = data.religionId || data.religion_id;
     this.gender = data.gender;
-    this.createdAt = data.created_at;
-    this.updatedAt = data.updated_at;
+    this.createdAt = data.createdAt || data.created_at;
+    this.updatedAt = data.updatedAt || data.updated_at;
     // For populated data
     this.religion = data.religion;
   }
@@ -18,7 +18,7 @@ class Name {
     const { name, description = '', religionId, gender } = nameData;
     
     const result = await query(
-      `INSERT INTO names (name, description, religion_id, gender) 
+      `INSERT INTO names (name, description, "religionId", gender) 
        VALUES ($1, $2, $3, $4) 
        RETURNING *`,
       [name, description, religionId, gender]
@@ -32,7 +32,7 @@ class Name {
     const result = await query(`
       SELECT n.*, r.name as religion_name 
       FROM names n
-      LEFT JOIN religions r ON n.religion_id = r.id
+      LEFT JOIN religions r ON n."religionId" = r.id
       WHERE n.id = $1
     `, [id]);
     
@@ -68,7 +68,7 @@ class Name {
     }
 
     if (filterQuery.religionId) {
-      whereClause += ` AND n.religion_id = $${paramCount}`;
+      whereClause += ` AND n."religionId" = $${paramCount}`;
       values.push(filterQuery.religionId);
       paramCount++;
     }
@@ -90,7 +90,7 @@ class Name {
     const queryText = `
       SELECT n.*, r.name as religion_name 
       FROM names n
-      LEFT JOIN religions r ON n.religion_id = r.id
+      LEFT JOIN religions r ON n."religionId" = r.id
       ${whereClause}
       ${orderBy}
       LIMIT $${paramCount} OFFSET $${paramCount + 1}
@@ -127,7 +127,7 @@ class Name {
     }
 
     if (filterQuery.religionId) {
-      whereClause += ` AND religion_id = $${paramCount}`;
+      whereClause += ` AND "religionId" = $${paramCount}`;
       values.push(filterQuery.religionId);
       paramCount++;
     }
@@ -181,9 +181,9 @@ class Name {
 
     for (const [key, value] of Object.entries(updateData)) {
       if (key === 'religionId') {
-        fields.push(`religion_id = $${paramCount}`);
+        fields.push(`"religionId" = $${paramCount}`);
       } else {
-        fields.push(`${key} = $${paramCount}`);
+        fields.push(`"${key}" = $${paramCount}`);
       }
       values.push(value);
       paramCount++;

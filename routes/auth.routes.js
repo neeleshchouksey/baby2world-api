@@ -52,7 +52,7 @@ router.get('/google/callback',
             }
             
             // Success - generate token and redirect
-            const payload = { id: user.id, email: user.email, role: user.role };
+            const payload = { id: user.id, email: user.email, role: user.role, name: user.name };
             const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '1d' });
             const successUrl = process.env.NODE_ENV === 'production' 
                 ? 'https://baby2world.com/login/success'

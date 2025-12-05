@@ -133,13 +133,13 @@ exports.createSubGodName = async (req, res) => {
     try {
       // Check if already exists in god_name_sub_names
       const existingCheck = await query(
-        'SELECT 1 FROM god_name_sub_names WHERE god_name_id = $1 AND LOWER(sub_name) = LOWER($2)',
+        'SELECT 1 FROM god_name_sub_names WHERE "godNameId" = $1 AND LOWER("subName") = LOWER($2)',
         [parseInt(godNameId), name.trim()]
       );
       
       if (existingCheck.rows.length === 0) {
         await query(
-          'INSERT INTO god_name_sub_names (god_name_id, sub_name) VALUES ($1, $2)',
+          'INSERT INTO god_name_sub_names ("godNameId", "subName") VALUES ($1, $2)',
           [parseInt(godNameId), name.trim()]
         );
       }
@@ -228,26 +228,26 @@ exports.updateSubGodName = async (req, res) => {
       if (oldName.toLowerCase() !== newName.toLowerCase()) {
         // Remove old entry
         await query(
-          'DELETE FROM god_name_sub_names WHERE god_name_id = $1 AND LOWER(sub_name) = LOWER($2)',
+          'DELETE FROM god_name_sub_names WHERE "godNameId" = $1 AND LOWER("subName") = LOWER($2)',
           [finalGodNameId, oldName]
         );
         
         // Add new entry (if it doesn't exist)
         const existingCheck = await query(
-          'SELECT 1 FROM god_name_sub_names WHERE god_name_id = $1 AND LOWER(sub_name) = LOWER($2)',
+          'SELECT 1 FROM god_name_sub_names WHERE "godNameId" = $1 AND LOWER("subName") = LOWER($2)',
           [finalGodNameId, newName]
         );
         
         if (existingCheck.rows.length === 0) {
           await query(
-            'INSERT INTO god_name_sub_names (god_name_id, sub_name) VALUES ($1, $2)',
+            'INSERT INTO god_name_sub_names ("godNameId", "subName") VALUES ($1, $2)',
             [finalGodNameId, newName]
           );
         }
       } else if (godNameId && parseInt(godNameId) !== oldSubGodName.godNameId) {
         // If god name ID changed, update the entry
         await query(
-          'UPDATE god_name_sub_names SET god_name_id = $1 WHERE god_name_id = $2 AND LOWER(sub_name) = LOWER($3)',
+          'UPDATE god_name_sub_names SET "godNameId" = $1 WHERE "godNameId" = $2 AND LOWER("subName") = LOWER($3)',
           [finalGodNameId, oldSubGodName.godNameId, newName]
         );
       }
@@ -287,7 +287,7 @@ exports.deleteSubGodName = async (req, res) => {
     // Also remove from god_name_sub_names table
     try {
       await query(
-        'DELETE FROM god_name_sub_names WHERE god_name_id = $1 AND LOWER(sub_name) = LOWER($2)',
+        'DELETE FROM god_name_sub_names WHERE "godNameId" = $1 AND LOWER("subName") = LOWER($2)',
         [subGodNameToDelete.godNameId, subGodNameToDelete.name.trim()]
       );
     } catch (syncError) {

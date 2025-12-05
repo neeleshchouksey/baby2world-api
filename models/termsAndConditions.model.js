@@ -20,12 +20,12 @@ class TermsAndConditions {
     this.id = data.id;
     this.version = data.version;
     this.content = data.content;
-    this.isActive = data.is_active;
-    this.publishedAt = data.published_at;
-    this.createdBy = data.created_by;
-    this.updatedBy = data.updated_by;
-    this.createdAt = data.created_at;
-    this.updatedAt = data.updated_at;
+    this.isActive = data.isActive !== undefined ? data.isActive : (data.is_active !== undefined ? data.is_active : false);
+    this.publishedAt = data.publishedAt || data.published_at;
+    this.createdBy = data.createdBy || data.created_by;
+    this.updatedBy = data.updatedBy || data.updated_by;
+    this.createdAt = data.createdAt || data.created_at;
+    this.updatedAt = data.updatedAt || data.updated_at;
 
     // Extra data jo JOIN se aayega
     this.createdByUser = data.creator_name ? { name: data.creator_name } : null;
@@ -40,7 +40,7 @@ class TermsAndConditions {
     const { version, content, createdBy } = tncData;
     
     const result = await query(
-      `INSERT INTO terms_and_conditions (version, content, created_by) 
+      `INSERT INTO terms_and_conditions (version, content, "createdBy") 
        VALUES ($1, $2, $3) 
        RETURNING *`,
       [version, content, createdBy]
@@ -60,8 +60,8 @@ class TermsAndConditions {
         creator.name as creator_name, 
         updater.name as updater_name
       FROM terms_and_conditions tnc
-      LEFT JOIN users creator ON tnc.created_by = creator.id
-      LEFT JOIN users updater ON tnc.updated_by = updater.id
+      LEFT JOIN users creator ON tnc."createdBy" = creator.id
+      LEFT JOIN users updater ON tnc."updatedBy" = updater.id
       WHERE tnc.id = $1
     `, [id]);
     
@@ -76,7 +76,7 @@ class TermsAndConditions {
    */
   static async findOneActive() {
     const result = await query(
-      `SELECT * FROM terms_and_conditions WHERE is_active = true LIMIT 1`
+      `SELECT * FROM terms_and_conditions WHERE "isActive" = true LIMIT 1`
     );
 
     if (result.rows.length === 0) return null;
@@ -98,7 +98,7 @@ class TermsAndConditions {
 
     // Filter by active status
     if (filterQuery.isActive !== undefined) {
-      whereClause += ` AND is_active = $${paramCount}`;
+      whereClause += ` AND "isActive" = $${paramCount}`;
       values.push(filterQuery.isActive);
       paramCount++;
     }
@@ -111,9 +111,9 @@ class TermsAndConditions {
     }
 
     // ORDER BY clause
-    let orderBy = 'ORDER BY created_at DESC'; // Default sort
+    let orderBy = 'ORDER BY "createdAt" DESC'; // Default sort
     if (sort.createdAt === 1) {
-      orderBy = 'ORDER BY created_at ASC';
+      orderBy = 'ORDER BY "createdAt" ASC';
     } else if (sort.version === 1) {
       orderBy = 'ORDER BY version ASC';
     } else if (sort.version === -1) {
@@ -143,7 +143,7 @@ class TermsAndConditions {
     let paramCount = 1;
 
     if (filterQuery.isActive !== undefined) {
-      whereClause += ` AND is_active = $${paramCount}`;
+      whereClause += ` AND "isActive" = $${paramCount}`;
       values.push(filterQuery.isActive);
       paramCount++;
     }
@@ -169,11 +169,11 @@ class TermsAndConditions {
       await client.query('BEGIN'); // Transaction shuru
 
       // Agar hum ek T&C ko active kar rahe hain...
-      if (updateData.is_active === true) {
+      if (updateData.isActive === true || updateData.is_active === true) {
         // ... to pehle baaki sabhi T&C ko inactive kar do.
-        await client.query('UPDATE terms_and_conditions SET is_active = false WHERE id != $1', [id]);
+        await client.query('UPDATE terms_and_conditions SET "isActive" = false WHERE id != $1', [id]);
         // Aur iska publishing time set kar do.
-        updateData.published_at = new Date();
+        updateData.publishedAt = updateData.publishedAt || updateData.published_at || new Date();
       }
 
       // Ab original record ko update karo.
@@ -182,13 +182,26 @@ class TermsAndConditions {
       let paramCount = 1;
 
       for (const [key, value] of Object.entries(updateData)) {
-        // Javascript property name (e.g., isActive) ko database column name (e.g., is_active) mein convert karte hain
-        const dbKey = key.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
-        fields.push(`${dbKey} = $${paramCount}`);
+        // Map JavaScript property names to camelCase database column names
+        if (key === 'isActive' || key === 'is_active') {
+          fields.push(`"isActive" = $${paramCount}`);
+        } else if (key === 'publishedAt' || key === 'published_at') {
+          fields.push(`"publishedAt" = $${paramCount}`);
+        } else if (key === 'createdBy' || key === 'created_by') {
+          fields.push(`"createdBy" = $${paramCount}`);
+        } else if (key === 'updatedBy' || key === 'updated_by') {
+          fields.push(`"updatedBy" = $${paramCount}`);
+        } else if (key === 'createdAt' || key === 'created_at') {
+          fields.push(`"createdAt" = $${paramCount}`);
+        } else if (key === 'updatedAt' || key === 'updated_at') {
+          fields.push(`"updatedAt" = $${paramCount}`);
+        } else {
+          fields.push(`"${key}" = $${paramCount}`);
+        }
         values.push(value);
         paramCount++;
       }
-      fields.push(`updated_at = CURRENT_TIMESTAMP`);
+      fields.push(`"updatedAt" = CURRENT_TIMESTAMP`);
       values.push(id);
 
       const updateQuery = `UPDATE terms_and_conditions SET ${fields.join(', ')} WHERE id = $${paramCount} RETURNING *`;

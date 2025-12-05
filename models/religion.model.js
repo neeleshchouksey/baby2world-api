@@ -4,11 +4,11 @@ class Religion {
   constructor(data) {
     this.id = data.id;
     this.name = data.name;
-    this.isActive = data.is_active;
-    this.createdBy = data.created_by;
-    this.updatedBy = data.updated_by;
-    this.createdAt = data.created_at;
-    this.updatedAt = data.updated_at;
+    this.isActive = data.isActive !== undefined ? data.isActive : (data.is_active !== undefined ? data.is_active : true);
+    this.createdBy = data.createdBy || data.created_by;
+    this.updatedBy = data.updatedBy || data.updated_by;
+    this.createdAt = data.createdAt || data.created_at;
+    this.updatedAt = data.updatedAt || data.updated_at;
     // For populated data
     this.createdByUser = data.created_by_user;
     this.updatedByUser = data.updated_by_user;
@@ -19,7 +19,7 @@ class Religion {
     const { name, createdBy } = religionData;
     
     const result = await query(
-      `INSERT INTO religions (name, created_by) 
+      `INSERT INTO religions (name, "createdBy") 
        VALUES ($1, $2) 
        RETURNING *`,
       [name, createdBy]
@@ -35,8 +35,8 @@ class Religion {
              cb.name as created_by_name, cb.email as created_by_email,
              ub.name as updated_by_name, ub.email as updated_by_email
       FROM religions r
-      LEFT JOIN users cb ON r.created_by = cb.id
-      LEFT JOIN users ub ON r.updated_by = ub.id
+      LEFT JOIN users cb ON r."createdBy" = cb.id
+      LEFT JOIN users ub ON r."updatedBy" = ub.id
       WHERE r.id = $1
     `, [id]);
     
@@ -63,7 +63,7 @@ class Religion {
     let paramCount = 1;
 
     if (filterQuery.isActive !== undefined) {
-      whereClause += ` AND r.is_active = $${paramCount}`;
+      whereClause += ` AND r."isActive" = $${paramCount}`;
       values.push(filterQuery.isActive);
       paramCount++;
     }
@@ -87,8 +87,8 @@ class Religion {
              cb.name as created_by_name, cb.email as created_by_email,
              ub.name as updated_by_name, ub.email as updated_by_email
       FROM religions r
-      LEFT JOIN users cb ON r.created_by = cb.id
-      LEFT JOIN users ub ON r.updated_by = ub.id
+      LEFT JOIN users cb ON r."createdBy" = cb.id
+      LEFT JOIN users ub ON r."updatedBy" = ub.id
       ${whereClause}
       ${orderBy}
     `;
@@ -124,7 +124,7 @@ class Religion {
     }
 
     if (conditions.isActive !== undefined) {
-      whereClause += ` AND is_active = $${paramCount}`;
+      whereClause += ` AND "isActive" = $${paramCount}`;
       values.push(conditions.isActive);
       paramCount++;
     }
@@ -141,11 +141,11 @@ class Religion {
 
     for (const [key, value] of Object.entries(updateData)) {
       if (key === 'isActive') {
-        fields.push(`is_active = $${paramCount}`);
+        fields.push(`"isActive" = $${paramCount}`);
       } else if (key === 'updatedBy') {
-        fields.push(`updated_by = $${paramCount}`);
+        fields.push(`"updatedBy" = $${paramCount}`);
       } else {
-        fields.push(`${key} = $${paramCount}`);
+        fields.push(`"${key}" = $${paramCount}`);
       }
       values.push(value);
       paramCount++;
@@ -165,7 +165,7 @@ class Religion {
   // Instance method to save religion
   async save() {
     const result = await query(
-      `UPDATE religions SET name = $1, is_active = $2, updated_by = $3 
+      `UPDATE religions SET name = $1, "isActive" = $2, "updatedBy" = $3 
        WHERE id = $4 RETURNING *`,
       [this.name, this.isActive, this.updatedBy, this.id]
     );

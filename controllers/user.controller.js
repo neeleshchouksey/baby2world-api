@@ -264,17 +264,17 @@ exports.getAllUsers = async (req, res) => {
     }
 
     // Add sorting logic
-    let orderBy = 'ORDER BY created_at DESC'; // default
+    let orderBy = 'ORDER BY "createdAt" DESC'; // default
     switch (sortBy) {
       case 'oldest':
-        orderBy = 'ORDER BY created_at ASC';
+        orderBy = 'ORDER BY "createdAt" ASC';
         break;
       case 'alphabetical':
         orderBy = 'ORDER BY name ASC';
         break;
       case 'newest':
       default:
-        orderBy = 'ORDER BY created_at DESC';
+        orderBy = 'ORDER BY "createdAt" DESC';
         break;
     }
 
@@ -283,9 +283,9 @@ exports.getAllUsers = async (req, res) => {
       const statusFilter = req.query.status === 'active' ? true : req.query.status === 'inactive' ? false : null;
       if (statusFilter !== null) {
         if (whereClause) {
-          whereClause += ` AND COALESCE(is_active, true) = $${paramCount}`;
+          whereClause += ` AND COALESCE("isActive", true) = $${paramCount}`;
         } else {
-          whereClause = `WHERE COALESCE(is_active, true) = $${paramCount}`;
+          whereClause = `WHERE COALESCE("isActive", true) = $${paramCount}`;
         }
         queryParams.push(statusFilter);
         paramCount++;
@@ -303,7 +303,7 @@ exports.getAllUsers = async (req, res) => {
 
     // Get users with pagination
     const usersQuery = `
-      SELECT id, name, email, role, created_at, updated_at, picture, COALESCE(is_active, true) as is_active
+      SELECT id, name, email, role, "createdAt", "updatedAt", picture, COALESCE("isActive", true) as "isActive"
       FROM users 
       ${whereClause || ''}
       ${orderBy}
@@ -318,10 +318,10 @@ exports.getAllUsers = async (req, res) => {
       name: user.name,
       email: user.email,
       role: user.role,
-      createdAt: user.created_at,
-      updatedAt: user.updated_at,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
       picture: user.picture,
-      isActive: user.is_active !== undefined ? user.is_active : true
+      isActive: user.isActive !== undefined ? user.isActive : true
     }));
 
     res.status(200).json({
@@ -373,9 +373,9 @@ exports.deleteUser = async (req, res) => {
     }
 
     // Delete user's favorites first
-    await query('DELETE FROM user_favorite_names WHERE user_id = $1', [userIdInt]);
-    await query('DELETE FROM user_favorite_god_names WHERE user_id = $1', [userIdInt]);
-    await query('DELETE FROM user_favorite_nicknames WHERE user_id = $1', [userIdInt]);
+    await query('DELETE FROM user_favorite_names WHERE "userId" = $1', [userIdInt]);
+    await query('DELETE FROM user_favorite_god_names WHERE "userId" = $1', [userIdInt]);
+    await query('DELETE FROM user_favorite_nicknames WHERE "userId" = $1', [userIdInt]);
 
     // Delete the user
     await query('DELETE FROM users WHERE id = $1', [userIdInt]);
@@ -423,7 +423,7 @@ exports.updateUserStatus = async (req, res) => {
     }
 
     // Update user status
-    await query('UPDATE users SET is_active = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [isActive, userIdInt]);
+    await query('UPDATE users SET "isActive" = $1, "updatedAt" = CURRENT_TIMESTAMP WHERE id = $2', [isActive, userIdInt]);
 
     res.status(200).json({
       success: true,
@@ -457,16 +457,16 @@ exports.getAllAdmins = async (req, res) => {
       i++;
     }
 
-    let orderBy = 'ORDER BY created_at DESC';
+    let orderBy = 'ORDER BY "createdAt" DESC';
     switch (sortBy) {
       case 'oldest':
-        orderBy = 'ORDER BY created_at ASC';
+        orderBy = 'ORDER BY "createdAt" ASC';
         break;
       case 'alphabetical':
         orderBy = 'ORDER BY name ASC';
         break;
       default:
-        orderBy = 'ORDER BY created_at DESC';
+        orderBy = 'ORDER BY "createdAt" DESC';
     }
 
     const countResult = await query(`SELECT COUNT(*) FROM admin_users ${whereClause}`, params);
@@ -474,7 +474,7 @@ exports.getAllAdmins = async (req, res) => {
 
     params.push(parseInt(limit), offset);
     const adminsResult = await query(`
-      SELECT id, name, email, picture, created_at, updated_at
+      SELECT id, name, email, picture, "createdAt", "updatedAt"
       FROM admin_users
       ${whereClause}
       ${orderBy}
@@ -486,8 +486,8 @@ exports.getAllAdmins = async (req, res) => {
       name: a.name,
       email: a.email,
       picture: a.picture,
-      createdAt: a.created_at,
-      updatedAt: a.updated_at
+      createdAt: a.createdAt,
+      updatedAt: a.updatedAt
     }));
 
     res.status(200).json({

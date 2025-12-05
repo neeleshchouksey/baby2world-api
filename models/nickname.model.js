@@ -6,11 +6,11 @@ class Nickname {
     this.name = data.name;
     this.description = data.description;
     this.gender = data.gender || 'unisex';
-    this.createdBy = data.created_by;
-    this.updatedBy = data.updated_by;
-    this.isActive = data.is_active;
-    this.createdAt = data.created_at;
-    this.updatedAt = data.updated_at;
+    this.createdBy = data.createdBy || data.created_by;
+    this.updatedBy = data.updatedBy || data.updated_by;
+    this.isActive = data.isActive !== undefined ? data.isActive : (data.is_active !== undefined ? data.is_active : true);
+    this.createdAt = data.createdAt || data.created_at;
+    this.updatedAt = data.updatedAt || data.updated_at;
     // For populated data
     this.createdByUser = data.created_by_user;
     this.updatedByUser = data.updated_by_user;
@@ -21,7 +21,7 @@ class Nickname {
     const { name, description = '', createdBy } = nicknameData;
     
     const result = await query(
-      `INSERT INTO nicknames (name, description, created_by) 
+      `INSERT INTO nicknames (name, description, "createdBy") 
        VALUES ($1, $2, $3) 
        RETURNING *`,
       [name, description, createdBy]
@@ -37,8 +37,8 @@ class Nickname {
              cb.name as created_by_name, cb.email as created_by_email,
              ub.name as updated_by_name, ub.email as updated_by_email
       FROM nicknames n
-      LEFT JOIN users cb ON n.created_by = cb.id
-      LEFT JOIN users ub ON n.updated_by = ub.id
+      LEFT JOIN users cb ON n."createdBy" = cb.id
+      LEFT JOIN users ub ON n."updatedBy" = ub.id
       WHERE n.id = $1
     `, [id]);
     
@@ -65,7 +65,7 @@ class Nickname {
     let paramCount = 1;
 
     if (filterQuery.isActive !== undefined) {
-      whereClause += ` AND n.is_active = $${paramCount}`;
+      whereClause += ` AND n."isActive" = $${paramCount}`;
       values.push(filterQuery.isActive);
       paramCount++;
     }
@@ -102,8 +102,8 @@ class Nickname {
              cb.name as created_by_name, cb.email as created_by_email,
              ub.name as updated_by_name, ub.email as updated_by_email
       FROM nicknames n
-      LEFT JOIN users cb ON n.created_by = cb.id
-      LEFT JOIN users ub ON n.updated_by = ub.id
+      LEFT JOIN users cb ON n."createdBy" = cb.id
+      LEFT JOIN users ub ON n."updatedBy" = ub.id
       ${whereClause}
       ${orderBy}
     `;
@@ -139,7 +139,7 @@ class Nickname {
     }
 
     if (conditions.isActive !== undefined) {
-      whereClause += ` AND is_active = $${paramCount}`;
+      whereClause += ` AND "isActive" = $${paramCount}`;
       values.push(conditions.isActive);
       paramCount++;
     }
@@ -156,11 +156,11 @@ class Nickname {
 
     for (const [key, value] of Object.entries(updateData)) {
       if (key === 'isActive') {
-        fields.push(`is_active = $${paramCount}`);
+        fields.push(`"isActive" = $${paramCount}`);
       } else if (key === 'updatedBy') {
-        fields.push(`updated_by = $${paramCount}`);
+        fields.push(`"updatedBy" = $${paramCount}`);
       } else {
-        fields.push(`${key} = $${paramCount}`);
+        fields.push(`"${key}" = $${paramCount}`);
       }
       values.push(value);
       paramCount++;
@@ -180,7 +180,7 @@ class Nickname {
   // Instance method to save nickname
   async save() {
     const result = await query(
-      `UPDATE nicknames SET name = $1, description = $2, gender = $3, is_active = $4, updated_by = $5 
+      `UPDATE nicknames SET name = $1, description = $2, gender = $3, "isActive" = $4, "updatedBy" = $5 
        WHERE id = $6 RETURNING *`,
       [this.name, this.description, this.gender, this.isActive, this.updatedBy, this.id]
     );

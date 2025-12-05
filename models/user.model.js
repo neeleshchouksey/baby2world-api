@@ -4,15 +4,21 @@ const bcrypt = require('bcryptjs');
 class User {
   constructor(data) {
     this.id = data.id;
-    this.googleId = data.google_id;
+    // Handle PostgreSQL column name variations (quoted identifiers preserve case)
+    this.googleId = data.googleId || data['googleId'] || data.google_id || data['google_id'] || null;
     this.name = data.name;
     this.email = data.email;
     this.picture = data.picture;
     this.password = data.password;
     this.role = data.role;
-    this.isActive = data.is_active !== undefined ? data.is_active : true; // Default to true if null
-    this.createdAt = data.created_at;
-    this.updatedAt = data.updated_at;
+    // Handle isActive with multiple variations
+    this.isActive = data.isActive !== undefined ? data.isActive : 
+                    (data['isActive'] !== undefined ? data['isActive'] : 
+                    (data.is_active !== undefined ? data.is_active : 
+                    (data['is_active'] !== undefined ? data['is_active'] : true)));
+    // Handle createdAt/updatedAt with multiple variations
+    this.createdAt = data.createdAt || data['createdAt'] || data.created_at || data['created_at'] || null;
+    this.updatedAt = data.updatedAt || data['updatedAt'] || data.updated_at || data['updated_at'] || null;
   }
 
 
@@ -28,7 +34,7 @@ class User {
     }
 
     const result = await query(
-      `INSERT INTO users (google_id, name, email, picture, password, role) 
+      `INSERT INTO users ("googleId", name, email, picture, password, role) 
        VALUES ($1, $2, $3, $4, $5, $6) 
        RETURNING *`,
       [googleId, name, email, picture, hashedPassword, role]
@@ -51,7 +57,7 @@ class User {
 
   // Static method to find user by Google ID
   static async findByGoogleId(googleId) {
-    const result = await query('SELECT * FROM users WHERE google_id = $1', [googleId]);
+    const result = await query('SELECT * FROM users WHERE "googleId" = $1', [googleId]);
     return result.rows.length > 0 ? new User(result.rows[0]) : null;
   }
 
@@ -74,12 +80,22 @@ class User {
     let paramCount = 1;
 
     // Build dynamic update query
+    // Map camelCase keys to quoted column names
+    const columnMap = {
+      googleId: '"googleId"',
+      isActive: '"isActive"',
+      createdAt: '"createdAt"',
+      updatedAt: '"updatedAt"'
+    };
+    
     for (const [key, value] of Object.entries(updateData)) {
       if (key === '$addToSet' || key === '$pull') {
         // Handle array operations
         continue;
       }
-      fields.push(`${key} = $${paramCount}`);
+      // Use quoted column name if it's a camelCase column, otherwise use key as-is
+      const columnName = columnMap[key] || key;
+      fields.push(`${columnName} = $${paramCount}`);
       values.push(value);
       paramCount++;
     }
@@ -90,17 +106,17 @@ class User {
         for (const [field, value] of Object.entries(updateData.$addToSet)) {
           if (field === 'favorites') {
             await query(
-              'INSERT INTO user_favorite_names (user_id, name_id) VALUES ($1, $2) ON CONFLICT (user_id, name_id) DO NOTHING',
+              'INSERT INTO user_favorite_names ("userId", "nameId") VALUES ($1, $2) ON CONFLICT ("userId", "nameId") DO NOTHING',
               [id, value]
             );
           } else if (field === 'godNameFavorites') {
             await query(
-              'INSERT INTO user_favorite_god_names (user_id, god_name_id) VALUES ($1, $2) ON CONFLICT (user_id, god_name_id) DO NOTHING',
+              'INSERT INTO user_favorite_god_names ("userId", "godNameId") VALUES ($1, $2) ON CONFLICT ("userId", "godNameId") DO NOTHING',
               [id, value]
             );
           } else if (field === 'nicknameFavorites') {
             await query(
-              'INSERT INTO user_favorite_nicknames (user_id, nickname_id) VALUES ($1, $2) ON CONFLICT (user_id, nickname_id) DO NOTHING',
+              'INSERT INTO user_favorite_nicknames ("userId", "nicknameId") VALUES ($1, $2) ON CONFLICT ("userId", "nicknameId") DO NOTHING',
               [id, value]
             );
           }
@@ -110,17 +126,17 @@ class User {
         for (const [field, value] of Object.entries(updateData.$pull)) {
           if (field === 'favorites') {
             await query(
-              'DELETE FROM user_favorite_names WHERE user_id = $1 AND name_id = $2',
+              'DELETE FROM user_favorite_names WHERE "userId" = $1 AND "nameId" = $2',
               [id, value]
             );
           } else if (field === 'godNameFavorites') {
             await query(
-              'DELETE FROM user_favorite_god_names WHERE user_id = $1 AND god_name_id = $2',
+              'DELETE FROM user_favorite_god_names WHERE "userId" = $1 AND "godNameId" = $2',
               [id, value]
             );
           } else if (field === 'nicknameFavorites') {
             await query(
-              'DELETE FROM user_favorite_nicknames WHERE user_id = $1 AND nickname_id = $2',
+              'DELETE FROM user_favorite_nicknames WHERE "userId" = $1 AND "nicknameId" = $2',
               [id, value]
             );
           }
@@ -155,9 +171,11 @@ class User {
     }
 
     const result = await query(
-      `UPDATE users SET name = $1, email = $2, picture = $3, password = $4, role = $5 
-       WHERE id = $6 RETURNING *`,
-      [this.name, this.email, this.picture, this.password, this.role, this.id]
+      `UPDATE users SET name = $1, email = $2, picture = $3, password = $4, role = $5, 
+       "googleId" = $6, "isActive" = $7, "updatedAt" = CURRENT_TIMESTAMP
+       WHERE id = $8 RETURNING *`,
+      [this.name, this.email, this.picture, this.password, this.role, 
+       this.googleId, this.isActive, this.id]
     );
 
     return new User(result.rows[0]);
@@ -201,9 +219,9 @@ class User {
     const result = await query(`
       SELECT n.*, r.name as religion_name 
       FROM user_favorite_names ufn
-      JOIN names n ON ufn.name_id = n.id
-      LEFT JOIN religions r ON n.religion_id = r.id
-      WHERE ufn.user_id = $1
+      JOIN names n ON ufn."nameId" = n.id
+      LEFT JOIN religions r ON n."religionId" = r.id
+      WHERE ufn."userId" = $1
       ORDER BY n.name
     `, [this.id]);
 
@@ -215,9 +233,9 @@ class User {
     const result = await query(`
       SELECT gn.*, r.name as religion_name 
       FROM user_favorite_god_names ufgn
-      JOIN god_names gn ON ufgn.god_name_id = gn.id
-      LEFT JOIN religions r ON gn.religion_id = r.id
-      WHERE ufgn.user_id = $1
+      JOIN god_names gn ON ufgn."godNameId" = gn.id
+      LEFT JOIN religions r ON gn."religionId" = r.id
+      WHERE ufgn."userId" = $1
       ORDER BY gn.name
     `, [this.id]);
 
@@ -229,8 +247,8 @@ class User {
     const result = await query(`
       SELECT n.* 
       FROM user_favorite_nicknames ufn
-      JOIN nicknames n ON ufn.nickname_id = n.id
-      WHERE ufn.user_id = $1
+      JOIN nicknames n ON ufn."nicknameId" = n.id
+      WHERE ufn."userId" = $1
       ORDER BY n.name
     `, [this.id]);
 
@@ -240,7 +258,7 @@ class User {
   // Method to check if a name is in favorites
   async hasFavoriteName(nameId) {
     const result = await query(
-      'SELECT 1 FROM user_favorite_names WHERE user_id = $1 AND name_id = $2',
+      'SELECT 1 FROM user_favorite_names WHERE "userId" = $1 AND "nameId" = $2',
       [this.id, nameId]
     );
     return result.rows.length > 0;
@@ -249,7 +267,7 @@ class User {
   // Method to check if a god name is in favorites
   async hasFavoriteGodName(godNameId) {
     const result = await query(
-      'SELECT 1 FROM user_favorite_god_names WHERE user_id = $1 AND god_name_id = $2',
+      'SELECT 1 FROM user_favorite_god_names WHERE "userId" = $1 AND "godNameId" = $2',
       [this.id, godNameId]
     );
     return result.rows.length > 0;
@@ -258,7 +276,7 @@ class User {
   // Method to check if a nickname is in favorites
   async hasFavoriteNickname(nicknameId) {
     const result = await query(
-      'SELECT 1 FROM user_favorite_nicknames WHERE user_id = $1 AND nickname_id = $2',
+      'SELECT 1 FROM user_favorite_nicknames WHERE "userId" = $1 AND "nicknameId" = $2',
       [this.id, nicknameId]
     );
     return result.rows.length > 0;

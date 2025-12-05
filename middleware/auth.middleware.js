@@ -22,7 +22,7 @@ const authMiddleware = async (req, res, next) => {
     // Check if user is active (only for regular users, not admins)
     if (decoded.role === 'user') {
       const userId = decoded.id || decoded.userId;
-      const userResult = await query('SELECT is_active FROM users WHERE id = $1', [userId]);
+      const userResult = await query('SELECT "isActive" FROM users WHERE id = $1', [userId]);
       
       if (userResult.rows.length === 0) {
         return res.status(401).json({
@@ -31,7 +31,10 @@ const authMiddleware = async (req, res, next) => {
         });
       }
       
-      const isActive = userResult.rows[0].is_active !== false; // Default to true if null
+      // Handle both camelCase and snake_case during transition
+      const isActive = userResult.rows[0].isActive !== undefined ? userResult.rows[0].isActive : 
+                      (userResult.rows[0]['isActive'] !== undefined ? userResult.rows[0]['isActive'] :
+                      (userResult.rows[0].is_active !== undefined ? userResult.rows[0].is_active : true));
       
       if (!isActive) {
         return res.status(403).json({

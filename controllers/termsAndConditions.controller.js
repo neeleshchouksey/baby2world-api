@@ -220,7 +220,7 @@ const updateTerms = async (req, res) => {
       updateData.content = content.trim();
     }
     if (isActive !== undefined) {
-      updateData.is_active = isActive === true;
+      updateData.isActive = isActive === true;
     }
 
     // Update terms

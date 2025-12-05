@@ -20,11 +20,11 @@ class SubGodName {
     this.id = data.id;
     this.name = data.name;
     this.description = data.description;
-    this.godNameId = data.god_name_id;
-    this.createdBy = data.created_by;
-    this.updatedBy = data.updated_by;
-    this.createdAt = data.created_at;
-    this.updatedAt = data.updated_at;
+    this.godNameId = data.godNameId || data.god_name_id;
+    this.createdBy = data.createdBy || data.created_by;
+    this.updatedBy = data.updatedBy || data.updated_by;
+    this.createdAt = data.createdAt || data.created_at;
+    this.updatedAt = data.updatedAt || data.updated_at;
     // For populated data
     this.godName = data.god_name;
   }
@@ -34,7 +34,7 @@ class SubGodName {
     const { name, description, godNameId, createdBy } = subGodNameData;
     
     const result = await query(
-      `INSERT INTO subgodnames (name, description, god_name_id, created_by) 
+      `INSERT INTO sub_god_names (name, description, "godNameId", "createdBy") 
        VALUES ($1, $2, $3, $4) 
        RETURNING *`,
       [name, description || null, godNameId, createdBy]
@@ -47,8 +47,8 @@ class SubGodName {
   static async findById(id) {
     const result = await query(`
       SELECT sg.*, gn.name as god_name 
-      FROM subgodnames sg
-      LEFT JOIN god_names gn ON sg.god_name_id = gn.id
+      FROM sub_god_names sg
+      LEFT JOIN god_names gn ON sg."godNameId" = gn.id
       WHERE sg.id = $1
     `, [id]);
     
@@ -71,7 +71,7 @@ class SubGodName {
 
     // Filter by god name ID
     if (filterQuery.godNameId) {
-      whereClause += ` AND sg.god_name_id = $${paramCount}`;
+      whereClause += ` AND sg."godNameId" = $${paramCount}`;
       values.push(parseInt(filterQuery.godNameId));
       paramCount++;
     }
@@ -116,16 +116,16 @@ class SubGodName {
     if (sort.name === -1) {
       orderBy = 'ORDER BY sg.name DESC';
     } else if (sort.createdAt === -1) {
-      orderBy = 'ORDER BY sg.created_at DESC';
+      orderBy = 'ORDER BY sg."createdAt" DESC';
     } else if (sort.createdAt === 1) {
-      orderBy = 'ORDER BY sg.created_at ASC';
+      orderBy = 'ORDER BY sg."createdAt" ASC';
     }
 
     // Add pagination with LIMIT and OFFSET
     const queryText = `
       SELECT sg.*, gn.name as god_name 
-      FROM subgodnames sg
-      LEFT JOIN god_names gn ON sg.god_name_id = gn.id
+      FROM sub_god_names sg
+      LEFT JOIN god_names gn ON sg."godNameId" = gn.id
       ${whereClause}
       ${orderBy}
       LIMIT $${paramCount} OFFSET $${paramCount + 1}
@@ -149,7 +149,7 @@ class SubGodName {
 
     // Filter by god name ID
     if (filterQuery.godNameId) {
-      whereClause += ` AND god_name_id = $${paramCount}`;
+      whereClause += ` AND "godNameId" = $${paramCount}`;
       values.push(parseInt(filterQuery.godNameId));
       paramCount++;
     }
@@ -188,7 +188,7 @@ class SubGodName {
       paramCount += 2;
     }
 
-    const result = await query(`SELECT COUNT(*) as count FROM subgodnames ${whereClause}`, values);
+    const result = await query(`SELECT COUNT(*) as count FROM sub_god_names ${whereClause}`, values);
     return parseInt(result.rows[0].count);
   }
 
@@ -217,7 +217,7 @@ class SubGodName {
     }
 
     if (conditions.godNameId) {
-      whereClause += ` AND god_name_id = $${paramCount}`;
+      whereClause += ` AND "godNameId" = $${paramCount}`;
       values.push(parseInt(conditions.godNameId));
       paramCount++;
     }
@@ -230,7 +230,7 @@ class SubGodName {
 
     // Use indexed column for better performance
     const result = await query(
-      `SELECT * FROM subgodnames ${whereClause} LIMIT 1`,
+      `SELECT * FROM sub_god_names ${whereClause} LIMIT 1`,
       values
     );
     if (result.rows.length === 0) return null;
@@ -246,21 +246,21 @@ class SubGodName {
 
     for (const [key, value] of Object.entries(updateData)) {
       if (key === 'godNameId') {
-        fields.push(`god_name_id = $${paramCount}`);
+        fields.push(`"godNameId" = $${paramCount}`);
       } else if (key === 'updatedBy') {
-        fields.push(`updated_by = $${paramCount}`);
+        fields.push(`"updatedBy" = $${paramCount}`);
       } else {
-        fields.push(`${key} = $${paramCount}`);
+        fields.push(`"${key}" = $${paramCount}`);
       }
       values.push(value);
       paramCount++;
     }
 
-    // Add updated_at
-    fields.push(`updated_at = CURRENT_TIMESTAMP`);
+    // Add updatedAt
+    fields.push(`"updatedAt" = CURRENT_TIMESTAMP`);
 
     values.push(id);
-    const updateQuery = `UPDATE subgodnames SET ${fields.join(', ')} WHERE id = $${paramCount} RETURNING *`;
+    const updateQuery = `UPDATE sub_god_names SET ${fields.join(', ')} WHERE id = $${paramCount} RETURNING *`;
     const result = await query(updateQuery, values);
 
     if (result.rows.length === 0) return null;
@@ -270,14 +270,14 @@ class SubGodName {
 
   // Static method to find and delete
   static async findByIdAndDelete(id) {
-    const result = await query('DELETE FROM subgodnames WHERE id = $1 RETURNING *', [id]);
+    const result = await query('DELETE FROM sub_god_names WHERE id = $1 RETURNING *', [id]);
     return result.rows.length > 0 ? new SubGodName(result.rows[0]) : null;
   }
 
   // Instance method to save sub god name
   async save() {
     const result = await query(
-      `UPDATE subgodnames SET name = $1, description = $2, god_name_id = $3, updated_at = CURRENT_TIMESTAMP 
+      `UPDATE sub_god_names SET name = $1, description = $2, "godNameId" = $3, "updatedAt" = CURRENT_TIMESTAMP 
        WHERE id = $4 RETURNING *`,
       [this.name, this.description, this.godNameId, this.id]
     );

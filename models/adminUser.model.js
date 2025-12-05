@@ -8,8 +8,8 @@ class AdminUser {
     this.email = data.email;
     this.password = data.password;
     this.picture = data.picture;
-    this.createdAt = data.created_at;
-    this.updatedAt = data.updated_at;
+    this.createdAt = data.createdAt || data.created_at;
+    this.updatedAt = data.updatedAt || data.updated_at;
   }
 
   static async findByEmail(email) {

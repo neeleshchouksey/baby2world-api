@@ -6,8 +6,8 @@ exports.up = async function(query) {
   if (defaultReligionCheck.rows.length === 0) {
     console.log('No active religions found, creating a default religion...');
     await query(`
-      INSERT INTO religions (name, description, is_active, created_at, updated_at)
-      VALUES ('General', 'General category for names without specific religion', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      INSERT INTO religions (name, is_active, created_at, updated_at)
+      VALUES ('General', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `);
   }
   

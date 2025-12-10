@@ -17,6 +17,8 @@ require('./config/passport-setup');
 const authRoutes = require('./routes/auth.routes');
 const csvImportRoutes = require('./routes/csvImport.routes');
 const termsAndConditionsRoutes = require('./routes/termsAndConditions.routes');
+const pageRoutes = require('./routes/page.routes');
+const uploadRoutes = require('./routes/upload.routes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -80,6 +82,11 @@ app.use('/api/nicknames', nicknameRoutes);
 app.use('/api/subgodnames', subGodNameRoutes);
 app.use('/api/csv-import', csvImportRoutes);
 app.use('/api/terms-and-conditions', termsAndConditionsRoutes);
+app.use('/api/pages', pageRoutes);
+app.use('/api/upload', uploadRoutes);
+
+// Serve uploaded images statically
+app.use('/uploads', express.static('uploads'));
 // Test route to check if server is running
 app.get('/', (req, res) => {
   res.json({ message: 'Server is running!' });

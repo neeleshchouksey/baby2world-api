@@ -3,6 +3,7 @@ const { query } = require('./config/database');
 const cors = require('cors');
 const passport = require('passport');
 const religionRoutes = require('./routes/religion.routes');
+const originRoutes = require('./routes/origin.routes');
 const session = require('express-session');
 const nameRoutes = require('./routes/name.routes');
 const godNameRoutes = require('./routes/godname.routes');
@@ -11,7 +12,7 @@ const nicknameRoutes = require('./routes/nickname.routes');
 const subGodNameRoutes = require('./routes/subgodname.routes');
 require('dotenv').config();
 
-// Passport Config (yeh line passport-setup.js file ko execute karti hai)
+// Passport Config
 require('./config/passport-setup'); 
 
 const authRoutes = require('./routes/auth.routes');
@@ -19,6 +20,7 @@ const csvImportRoutes = require('./routes/csvImport.routes');
 const termsAndConditionsRoutes = require('./routes/termsAndConditions.routes');
 const pageRoutes = require('./routes/page.routes');
 const uploadRoutes = require('./routes/upload.routes');
+const mediaRoutes = require('./routes/media.routes'); // 👈 ADD THIS
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -29,7 +31,6 @@ let corsOrigins;
 if (process.env.NODE_ENV === 'production') {
   corsOrigins = ['https://baby2world.com', 'https://www.baby2world.com'];
 } else if (process.env.NODE_ENV === 'staging') {
-  // Support both environment variable and default staging URLs
   const stagingOrigins = process.env.CORS_ORIGINS 
     ? process.env.CORS_ORIGINS.split(',').map(origin => origin.trim())
     : ['https://staging.baby2world.com', 'https://www-staging.baby2world.com'];
@@ -49,16 +50,16 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Express Session Middleware (Passport OAuth ke liye zaroori)
+// Express Session Middleware
 app.use(
   session({
     secret: process.env.JWT_SECRET || 'your_jwt_secret_here',
     resave: false,
     saveUninitialized: true,
     cookie: {
-      secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+      secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      maxAge: 24 * 60 * 60 * 1000,
     },
   })
 );
@@ -75,6 +76,7 @@ query('SELECT NOW()')
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/religions', religionRoutes);
+app.use('/api/origins', originRoutes);
 app.use('/api/names', nameRoutes);
 app.use('/api/god-names', godNameRoutes);
 app.use('/api/user', userRoutes);
@@ -84,15 +86,17 @@ app.use('/api/csv-import', csvImportRoutes);
 app.use('/api/terms-and-conditions', termsAndConditionsRoutes);
 app.use('/api/pages', pageRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/media', mediaRoutes); // 👈 ADD THIS
 
 // Serve uploaded images statically
 app.use('/uploads', express.static('uploads'));
-// Test route to check if server is running
+
+// Test route
 app.get('/', (req, res) => {
   res.json({ message: 'Server is running!' });
 });
 
-// Server ko start karna
+// Server start
 app.listen(PORT, HOST, () => {
   console.log(`🚀 Server is running on http://${HOST}:${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);

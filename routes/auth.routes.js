@@ -92,6 +92,11 @@ router.get('/me', auth, async (req, res) => {
       updatedAt: entity.updatedAt
     };
 
+    // Add isActive field for regular users (not admins)
+    if (role === 'user' && entity.isActive !== undefined) {
+      safe.isActive = entity.isActive;
+    }
+
     res.json({ success: true, user: safe });
 
   } catch (error) {

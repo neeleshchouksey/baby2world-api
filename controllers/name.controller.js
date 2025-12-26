@@ -90,7 +90,8 @@ exports.getAllNames = async (req, res) => {
     }
     
     if (filterQuery.search) {
-      whereClause += ` AND LOWER(n.name) LIKE LOWER($${paramIndex})`;
+      // Search in both name and description fields
+      whereClause += ` AND (LOWER(n.name) LIKE LOWER($${paramIndex}) OR LOWER(n.description) LIKE LOWER($${paramIndex}))`;
       params.push(`%${filterQuery.search}%`);
       paramIndex++;
     } else if (filterQuery.letter) {
@@ -110,9 +111,10 @@ exports.getAllNames = async (req, res) => {
     // Get names with pagination
     const offset = (page - 1) * limit;
     const namesQuery = `
-      SELECT n.*, r.name as religion_name 
+      SELECT n.*, r.name as religion_name, o.name as origin_name
       FROM names n 
       LEFT JOIN religions r ON n."religionId" = r.id
+      LEFT JOIN origins o ON n."originId" = o.id
       ${whereClause} 
       ORDER BY n.name ASC 
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
@@ -123,16 +125,23 @@ exports.getAllNames = async (req, res) => {
     console.log('Query params:', queryParams);
     
     const namesResult = await query(namesQuery, queryParams);
-    const names = namesResult.rows.map(row => new Name({
-      id: row.id,
-      name: row.name,
-      description: row.description,
-      religionId: row.religionId,
-      gender: row.gender,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-      religion: row.religion_name
-    }));
+    const names = namesResult.rows.map(row => {
+      const nameObj = new Name({
+        id: row.id,
+        name: row.name,
+        description: row.description,
+        religionId: row.religionId,
+        originId: row.originId,
+        gender: row.gender,
+        createdAt: row.createdAt,
+        updatedAt: row.updatedAt,
+        religion: row.religion_name,
+        origin: row.origin_name
+      });
+      // Add meaning as alias for description for frontend compatibility
+      nameObj.meaning = row.description;
+      return nameObj;
+    });
     
     // Send the final response to frontend
     res.json({
@@ -162,6 +171,8 @@ exports.getNameById = async (req, res) => {
         error: 'Name not found' 
       });
     }
+    // Add meaning as alias for description for frontend compatibility
+    name.meaning = name.description;
     res.json({ 
       success: true, 
       data: name 
@@ -177,7 +188,7 @@ exports.getNameById = async (req, res) => {
 // Create new name
 exports.createName = async (req, res) => {
   try {
-    const { name, description, religionId, gender } = req.body;
+    const { name, description, religionId, originId, gender } = req.body;
     
     // Validate required fields
     if (!name || !name.trim()) {
@@ -194,8 +205,9 @@ exports.createName = async (req, res) => {
       });
     }
 
-    // Normalize religionId - convert empty string to null
+    // Normalize religionId and originId - convert empty string to null
     const normalizedReligionId = religionId && religionId.trim() ? religionId : null;
+    const normalizedOriginId = originId && originId.trim() ? originId : null;
     
     // Check if name already exists (case-insensitive exact match)
     const existingName = await Name.findOne({ name: { $regex: `^${name.trim()}$` } });
@@ -209,7 +221,8 @@ exports.createName = async (req, res) => {
     const newName = await Name.create({ 
       name: name.trim(), 
       description: description || '', 
-      religionId: normalizedReligionId, 
+      religionId: normalizedReligionId,
+      originId: normalizedOriginId,
       gender: gender 
     });
     
@@ -230,11 +243,15 @@ exports.createName = async (req, res) => {
 // Update name
 exports.updateName = async (req, res) => {
   try {
-    const { name, description, religionId, gender } = req.body;
+    const { name, description, religionId, originId, gender } = req.body;
+    
+    // Normalize religionId and originId - convert empty string to null
+    const normalizedReligionId = religionId && religionId.trim() ? religionId : null;
+    const normalizedOriginId = originId && originId.trim() ? originId : null;
     
     const updatedName = await Name.findByIdAndUpdate(
       req.params.id,
-      { name, description, religionId, gender },
+      { name, description, religionId: normalizedReligionId, originId: normalizedOriginId, gender },
       { new: true }
     );
     

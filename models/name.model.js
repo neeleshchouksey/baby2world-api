@@ -6,22 +6,24 @@ class Name {
     this.name = data.name;
     this.description = data.description;
     this.religionId = data.religionId || data.religion_id;
+    this.originId = data.originId || data.origin_id;
     this.gender = data.gender;
     this.createdAt = data.createdAt || data.created_at;
     this.updatedAt = data.updatedAt || data.updated_at;
     // For populated data
     this.religion = data.religion;
+    this.origin = data.origin;
   }
 
   // Static method to create a new name
   static async create(nameData) {
-    const { name, description = '', religionId, gender } = nameData;
+    const { name, description = '', religionId, originId, gender } = nameData;
     
     const result = await query(
-      `INSERT INTO names (name, description, "religionId", gender) 
-       VALUES ($1, $2, $3, $4) 
+      `INSERT INTO names (name, description, "religionId", "originId", gender) 
+       VALUES ($1, $2, $3, $4, $5) 
        RETURNING *`,
-      [name, description, religionId, gender]
+      [name, description, religionId, originId, gender]
     );
 
     return new Name(result.rows[0]);
@@ -182,6 +184,8 @@ class Name {
     for (const [key, value] of Object.entries(updateData)) {
       if (key === 'religionId') {
         fields.push(`"religionId" = $${paramCount}`);
+      } else if (key === 'originId') {
+        fields.push(`"originId" = $${paramCount}`);
       } else {
         fields.push(`"${key}" = $${paramCount}`);
       }

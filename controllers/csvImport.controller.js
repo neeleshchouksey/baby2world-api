@@ -2,6 +2,8 @@ const { query } = require('../config/database');
 const csv = require('csv-parser');
 const fs = require('fs');
 const path = require('path');
+const Religion = require('../models/religion.model');
+const Origin = require('../models/origin.model');
 
 /**
  * CSV Import Controller
@@ -83,8 +85,9 @@ exports.uploadCSV = async (req, res) => {
 // Step 2: Get available database fields for mapping
 exports.getMappingFields = async (req, res) => {
   try {
-    // Get available religions for mapping
+    // Get available religions and origins for mapping
     const religionsResult = await query('SELECT id, name FROM religions WHERE "isActive" = true ORDER BY name');
+    const originsResult = await query('SELECT id, name FROM origins WHERE "isActive" = true ORDER BY name');
     
     const mappingFields = {
       required: [
@@ -93,7 +96,8 @@ exports.getMappingFields = async (req, res) => {
       ],
       optional: [
         { field: 'description', label: 'Description', type: 'text', required: false },
-        { field: 'religionId', label: 'Religion', type: 'select', required: false, options: religionsResult.rows }
+        { field: 'religionId', label: 'Religion', type: 'select', required: false, options: religionsResult.rows },
+        { field: 'originId', label: 'Origin', type: 'select', required: false, options: originsResult.rows }
       ]
     };
 
@@ -124,7 +128,21 @@ exports.processImport = async (req, res) => {
     });
     
     const { csvData, columnMapping, importOptions, filePath } = req.body;
-    const userId = req.user?.id;
+    let userId = req.user?.id;
+
+    // Validate user exists in database if userId is provided
+    if (userId) {
+      try {
+        const userCheck = await query('SELECT id FROM users WHERE id = $1', [userId]);
+        if (userCheck.rows.length === 0) {
+          console.log(`CSV Import - User ID ${userId} not found in database, setting importedBy to NULL`);
+          userId = null;
+        }
+      } catch (userCheckError) {
+        console.error('CSV Import - Error checking user:', userCheckError);
+        userId = null; // Set to null if check fails
+      }
+    }
 
     if (!columnMapping) {
       console.log('CSV Import - Missing required data');
@@ -158,6 +176,12 @@ exports.processImport = async (req, res) => {
       });
     }
 
+    // Log first row structure for debugging
+    if (csvDataToProcess.length > 0) {
+      console.log('CSV Import - First row structure:', csvDataToProcess[0]);
+      console.log('CSV Import - First row keys:', Object.keys(csvDataToProcess[0]));
+    }
+
     // Validate required mappings
     if (!columnMapping.name) {
       console.log('CSV Import - Name mapping is required');
@@ -166,6 +190,10 @@ exports.processImport = async (req, res) => {
         error: 'Name mapping is required'
       });
     }
+    
+    // Log column mapping for debugging
+    console.log('CSV Import - Column mapping received:', JSON.stringify(columnMapping, null, 2));
+    console.log('CSV Import - Import options received:', JSON.stringify(importOptions, null, 2));
     
     if (!columnMapping.gender && !importOptions.autoDetectGender) {
       console.log('CSV Import - Gender mapping is required');
@@ -179,7 +207,7 @@ exports.processImport = async (req, res) => {
 
     // Create import record
     const importRecord = await query(`
-      INSERT INTO csv_imports (filename, total_rows, successful_rows, failed_rows, skipped_rows, import_status, column_mapping, imported_by)
+      INSERT INTO csv_imports (filename, "totalRows", "successfulRows", "failedRows", "skippedRows", "importStatus", "columnMapping", "importedBy")
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING id
     `, [
@@ -215,6 +243,54 @@ exports.processImport = async (req, res) => {
     const existingNames = new Set(existingNamesResult.rows.map(row => row.name));
     console.log(`Found ${existingNames.size} existing names in database`);
     
+    // Pre-fetch all existing religions for faster lookup (including inactive ones)
+    console.log('Pre-fetching existing religions...');
+    const existingReligionsResult = await query('SELECT id, LOWER(name) as name_lower, "isActive" FROM religions');
+    const existingReligions = new Map();
+    const inactiveReligions = new Map(); // Track inactive religions to reactivate them
+    existingReligionsResult.rows.forEach(row => {
+      existingReligions.set(row.name_lower, row.id);
+      if (!row.isActive) {
+        inactiveReligions.set(row.name_lower, row.id);
+      }
+    });
+    console.log(`Found ${existingReligions.size} existing religions in database (${inactiveReligions.size} inactive):`, Array.from(existingReligions.keys()));
+    
+    // Track newly created religions
+    const newlyCreatedReligions = new Map();
+    
+    // Pre-fetch all existing origins for faster lookup (including inactive ones)
+    console.log('Pre-fetching existing origins...');
+    const existingOriginsResult = await query('SELECT id, LOWER(name) as name_lower, "isActive" FROM origins');
+    const existingOrigins = new Map();
+    const inactiveOrigins = new Map(); // Track inactive origins to reactivate them
+    existingOriginsResult.rows.forEach(row => {
+      existingOrigins.set(row.name_lower, row.id);
+      if (!row.isActive) {
+        inactiveOrigins.set(row.name_lower, row.id);
+      }
+    });
+    console.log(`Found ${existingOrigins.size} existing origins in database (${inactiveOrigins.size} inactive):`, Array.from(existingOrigins.keys()));
+    
+    // Track newly created origins
+    const newlyCreatedOrigins = new Map();
+    
+    // Get default religion ID for names without religion
+    let defaultReligionId = null;
+    try {
+      const defaultReligionResult = await query(
+        'SELECT id FROM religions WHERE "isActive" = true ORDER BY id ASC LIMIT 1'
+      );
+      if (defaultReligionResult.rows.length > 0) {
+        defaultReligionId = defaultReligionResult.rows[0].id;
+        console.log(`Default religion ID: ${defaultReligionId}`);
+      } else {
+        console.log('Warning: No active religion found, names without religion will have null religionId');
+      }
+    } catch (religionError) {
+      console.error('Error fetching default religion:', religionError);
+    }
+    
     for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
       const startIndex = batchIndex * batchSize;
       const endIndex = Math.min(startIndex + batchSize, csvDataToProcess.length);
@@ -223,19 +299,98 @@ exports.processImport = async (req, res) => {
       console.log(`Processing batch ${batchIndex + 1}/${totalBatches} (rows ${startIndex + 1}-${endIndex})`);
       
       for (let i = 0; i < batch.length; i++) {
-      const row = batch[i];
-      const rowNumber = startIndex + i + 1;
+        const row = batch[i];
+        const rowNumber = startIndex + i + 1;
       
       console.log(`CSV Import - Processing row ${rowNumber}:`, row);
+      console.log(`CSV Import - Column mapping for row ${rowNumber}:`, columnMapping);
+      console.log(`CSV Import - Available row keys:`, Object.keys(row));
 
       try {
-        // Extract data based on mapping
-        const nameData = {
-          name: row[columnMapping.name]?.trim(),
-          gender: columnMapping.gender === 'auto' ? 'unisex' : row[columnMapping.gender]?.trim(),
-          description: columnMapping.description ? row[columnMapping.description]?.trim() : '',
-          religionId: columnMapping.religionId || columnMapping.religion_id ? (row[columnMapping.religionId] || row[columnMapping.religion_id]) : null
+        // Helper function to get value from row with case-insensitive matching
+        const getRowValue = (columnName) => {
+          if (!columnName || columnName.trim() === '') return null;
+          
+          // Try exact match first
+          if (row[columnName] !== undefined) {
+            return row[columnName];
+          }
+          
+          // Try case-insensitive match
+          const rowKeys = Object.keys(row);
+          const matchedKey = rowKeys.find(key => key.toLowerCase() === columnName.toLowerCase());
+          if (matchedKey) {
+            return row[matchedKey];
+          }
+          
+          return null;
         };
+        
+        // Extract data based on mapping - handle empty strings and undefined values
+        const nameValue = getRowValue(columnMapping.name);
+        const name = nameValue ? String(nameValue).trim() : '';
+        
+        if (!name) {
+          console.log(`Row ${rowNumber}: Name is empty or not found. Column mapping: "${columnMapping.name}", Available keys:`, Object.keys(row));
+        }
+        
+        let genderValue = '';
+        if (columnMapping.gender === 'auto') {
+          genderValue = 'unisex';
+        } else if (columnMapping.gender && columnMapping.gender.trim() !== '') {
+          const genderRaw = getRowValue(columnMapping.gender);
+          genderValue = genderRaw ? String(genderRaw).trim() : '';
+        }
+        
+        const descriptionValue = columnMapping.description && columnMapping.description.trim() !== '' 
+          ? (getRowValue(columnMapping.description) ? String(getRowValue(columnMapping.description)).trim() : '')
+          : '';
+        
+        // Extract religion - check both religionId and religion_id mappings
+        // Frontend uses religion_id key which contains the actual CSV column name (e.g., "Religion")
+        let religionIdValue = null;
+        const religionColumnName = columnMapping.religionId || columnMapping.religion_id;
+        
+        if (religionColumnName && religionColumnName.trim() !== '') {
+          religionIdValue = getRowValue(religionColumnName);
+          console.log(`Row ${rowNumber}: Religion column mapped: "${religionColumnName}", extracted value: "${religionIdValue}"`);
+          
+          // If value is empty string, set to null
+          if (religionIdValue !== null && String(religionIdValue).trim() === '') {
+            religionIdValue = null;
+            console.log(`Row ${rowNumber}: Religion value is empty, setting to null`);
+          }
+        } else {
+          console.log(`Row ${rowNumber}: No religion column mapped`);
+        }
+        
+        // Extract origin - check both originId and origin_id mappings
+        let originIdValue = null;
+        const originColumnName = columnMapping.originId || columnMapping.origin_id;
+        
+        if (originColumnName && originColumnName.trim() !== '') {
+          originIdValue = getRowValue(originColumnName);
+          console.log(`Row ${rowNumber}: Origin column mapped: "${originColumnName}", extracted value: "${originIdValue}"`);
+          
+          // If value is empty string, set to null
+          if (originIdValue !== null && String(originIdValue).trim() === '') {
+            originIdValue = null;
+            console.log(`Row ${rowNumber}: Origin value is empty, setting to null`);
+          }
+        } else {
+          console.log(`Row ${rowNumber}: No origin column mapped`);
+        }
+        
+        const nameData = {
+          name: name,
+          gender: genderValue,
+          description: descriptionValue,
+          religionId: religionIdValue,
+          originId: originIdValue
+        };
+        
+        console.log(`CSV Import - Extracted data for row ${rowNumber}:`, nameData);
+        console.log(`CSV Import - Column mapping:`, JSON.stringify(columnMapping, null, 2));
 
         // Validate required fields
         if (!nameData.name) {
@@ -251,70 +406,331 @@ exports.processImport = async (req, res) => {
         console.log(`Row ${rowNumber}: Processing name "${nameData.name}"`);
 
         // Handle gender mapping with flexible matching
-        if (columnMapping.gender === 'auto') {
+        if (columnMapping.gender === 'auto' || (importOptions.autoDetectGender && (!columnMapping.gender || columnMapping.gender.trim() === ''))) {
           // Auto-detect gender based on name patterns or use unisex
           const detectedGender = detectGender(nameData.name);
           nameData.gender = detectedGender;
           console.log(`Row ${rowNumber}: Auto-detected gender for "${nameData.name}": ${detectedGender}`);
-        } else {
+        } else if (nameData.gender && nameData.gender.trim() !== '') {
           // Normalize gender input (case-insensitive, flexible matching)
           const normalizedGender = normalizeGender(nameData.gender);
           nameData.gender = normalizedGender;
           console.log(`Row ${rowNumber}: Using mapped gender for "${nameData.name}": ${normalizedGender} (from "${nameData.gender}")`);
+        } else {
+          // If no gender provided and auto-detect is not enabled, default to unisex
+          nameData.gender = 'unisex';
+          console.log(`Row ${rowNumber}: No gender provided, defaulting to unisex for "${nameData.name}"`);
         }
 
-        // Handle religion mapping - religionId is REQUIRED
+        // Handle religion mapping - simple logic: CSV se jo religion hai wahi use karo
         const religionValue = nameData.religionId;
-        if (religionValue) {
-          // If religionId is a string (religion name), find the ID
-          if (isNaN(religionValue)) {
-            // Try multiple religion matching strategies
-            let religionResult = await query(
-              'SELECT id, name FROM religions WHERE LOWER(name) = LOWER($1) AND "isActive" = true',
-              [religionValue]
-            );
-            
-            // If exact match not found, try partial match
-            if (religionResult.rows.length === 0) {
-              religionResult = await query(
-                'SELECT id, name FROM religions WHERE LOWER(name) LIKE LOWER($1) AND "isActive" = true',
-                [`%${religionValue}%`]
-              );
-            }
-            
-            // If still not found, try common variations
-            if (religionResult.rows.length === 0) {
-              const religionVariations = getReligionVariations(religionValue);
-              for (const variation of religionVariations) {
-                religionResult = await query(
-                  'SELECT id, name FROM religions WHERE LOWER(name) = LOWER($1) AND "isActive" = true',
-                  [variation]
-                );
-                if (religionResult.rows.length > 0) break;
-              }
-            }
-            if (religionResult.rows.length > 0) {
-              nameData.religionId = religionResult.rows[0].id;
-              console.log(`Row ${rowNumber}: Religion matched "${religionResult.rows[0].name}" (ID: ${nameData.religionId}) for input "${religionValue}"`);
+        console.log(`Row ${rowNumber}: Religion value from CSV: "${religionValue}" (type: ${typeof religionValue})`);
+        
+        if (religionValue && String(religionValue).trim() !== '') {
+          const trimmedReligion = String(religionValue).trim();
+          
+          // If it's a number, use it as religion ID
+          if (!isNaN(trimmedReligion) && trimmedReligion !== '' && !isNaN(parseInt(trimmedReligion))) {
+            const religionIdInt = parseInt(trimmedReligion);
+            // Verify religion exists
+            const verifyReligion = await query('SELECT id FROM religions WHERE id = $1 AND "isActive" = true', [religionIdInt]);
+            if (verifyReligion.rows.length > 0) {
+              nameData.religionId = religionIdInt;
+              console.log(`Row ${rowNumber}: Using religion ID from CSV: ${nameData.religionId}`);
             } else {
-              // If religion not found, skip this row
-              console.log(`Row ${rowNumber}: Religion "${religionValue}" not found, skipping`);
-              results.skipped.push({
-                row: rowNumber,
-                name: nameData.name,
-                reason: 'Religion not found'
-              });
-              continue;
+              console.log(`Row ${rowNumber}: Religion ID ${religionIdInt} not found in database, setting to null`);
+              nameData.religionId = null;
             }
           } else {
-            nameData.religionId = parseInt(religionValue);
+            // If it's a string (religion name), find exact match in database
+            const religionLower = trimmedReligion.toLowerCase();
+            console.log(`Row ${rowNumber}: Looking for religion by name: "${trimmedReligion}" (lowercase: "${religionLower}")`);
+            
+            // Check in pre-fetched religions first (active ones)
+            if (existingReligions.has(religionLower)) {
+              const religionId = existingReligions.get(religionLower);
+              // Check if it's inactive, if so reactivate it
+              if (inactiveReligions.has(religionLower)) {
+                await query('UPDATE religions SET "isActive" = true WHERE id = $1', [religionId]);
+                inactiveReligions.delete(religionLower);
+                console.log(`Row ${rowNumber}: Reactivated inactive religion: "${trimmedReligion}" (ID: ${religionId})`);
+              }
+              nameData.religionId = religionId;
+              console.log(`Row ${rowNumber}: Religion found in pre-fetched list: "${trimmedReligion}" (ID: ${nameData.religionId})`);
+            } else if (newlyCreatedReligions.has(religionLower)) {
+              nameData.religionId = newlyCreatedReligions.get(religionLower);
+              console.log(`Row ${rowNumber}: Religion found in newly created list: "${trimmedReligion}" (ID: ${nameData.religionId})`);
+            } else {
+              // Not in cache, check database (check both active and inactive)
+              const religionResult = await query(
+                'SELECT id, name, "isActive" FROM religions WHERE LOWER(name) = LOWER($1)',
+                [trimmedReligion]
+              );
+              
+              if (religionResult.rows.length > 0) {
+                // Found in database
+                const religion = religionResult.rows[0];
+                nameData.religionId = religion.id;
+                
+                // If inactive, reactivate it
+                if (!religion.isActive) {
+                  await query('UPDATE religions SET "isActive" = true WHERE id = $1', [religion.id]);
+                  console.log(`Row ${rowNumber}: Reactivated inactive religion: "${religion.name}" (ID: ${religion.id})`);
+                }
+                
+                // Add to cache
+                existingReligions.set(religionLower, nameData.religionId);
+                console.log(`Row ${rowNumber}: Religion found in database: "${religion.name}" (ID: ${nameData.religionId})`);
+              } else {
+                // Not found, create new religion
+                try {
+                  console.log(`Row ${rowNumber}: Religion "${trimmedReligion}" not found, creating new religion...`);
+                
+                if (!trimmedReligion || trimmedReligion.length === 0) {
+                  throw new Error('Religion name cannot be empty');
+                }
+                
+                if (trimmedReligion.length > 50) {
+                  throw new Error('Religion name cannot exceed 50 characters');
+                }
+                
+                // Try to create religion directly with SQL to avoid model issues
+                // First check if it exists (including inactive)
+                const checkAgain = await query(
+                  'SELECT id, name, "isActive" FROM religions WHERE LOWER(name) = LOWER($1)',
+                  [trimmedReligion]
+                );
+                
+                if (checkAgain.rows.length > 0) {
+                  const religion = checkAgain.rows[0];
+                  nameData.religionId = religion.id;
+                  
+                  // If inactive, reactivate it
+                  if (!religion.isActive) {
+                    await query('UPDATE religions SET "isActive" = true WHERE id = $1', [religion.id]);
+                    console.log(`Row ${rowNumber}: Reactivated inactive religion: "${religion.name}" (ID: ${religion.id})`);
+                  }
+                  
+                  // Add to cache
+                  existingReligions.set(religionLower, nameData.religionId);
+                  console.log(`Row ${rowNumber}: Religion found after recheck: "${religion.name}" (ID: ${nameData.religionId})`);
+                } else {
+                  const createResult = await query(
+                    'INSERT INTO religions (name, "createdBy", "isActive") VALUES ($1, $2, $3) RETURNING id, name',
+                    [trimmedReligion, null, true]
+                  );
+                  
+                  nameData.religionId = createResult.rows[0].id;
+                  // Add to both caches
+                  existingReligions.set(religionLower, nameData.religionId);
+                  newlyCreatedReligions.set(religionLower, nameData.religionId);
+                  console.log(`Row ${rowNumber}: ✅ Created new religion "${createResult.rows[0].name}" (ID: ${nameData.religionId})`);
+                }
+              } catch (createError) {
+                console.error(`Row ${rowNumber}: Error creating religion "${trimmedReligion}":`, createError);
+                console.error(`Row ${rowNumber}: Error details:`, {
+                  message: createError.message,
+                  code: createError.code,
+                  detail: createError.detail,
+                  constraint: createError.constraint
+                });
+                
+                // If duplicate error (unique constraint violation), try to find it again (including inactive)
+                if (createError.code === '23505' || createError.constraint === 'religions_name_key' || createError.message.includes('duplicate') || createError.message.includes('unique')) {
+                  console.log(`Row ${rowNumber}: Duplicate religion detected, finding existing religion...`);
+                  try {
+                    const duplicateCheck = await query(
+                      'SELECT id, name, "isActive" FROM religions WHERE LOWER(name) = LOWER($1)',
+                      [trimmedReligion]
+                    );
+                    if (duplicateCheck.rows.length > 0) {
+                      const religion = duplicateCheck.rows[0];
+                      nameData.religionId = religion.id;
+                      
+                      // If inactive, reactivate it
+                      if (!religion.isActive) {
+                        await query('UPDATE religions SET "isActive" = true WHERE id = $1', [religion.id]);
+                        console.log(`Row ${rowNumber}: Reactivated inactive duplicate religion: "${religion.name}" (ID: ${religion.id})`);
+                      }
+                      
+                      // Add to cache
+                      existingReligions.set(religionLower, nameData.religionId);
+                      console.log(`Row ${rowNumber}: Found duplicate religion: "${religion.name}" (ID: ${nameData.religionId})`);
+                    } else {
+                      throw createError; // Re-throw if still not found
+                    }
+                  } catch (findError) {
+                    console.error(`Row ${rowNumber}: Could not find duplicate religion:`, findError);
+                    // If still can't find, set to null (no default religion)
+                    nameData.religionId = null;
+                    console.log(`Row ${rowNumber}: Could not find or create religion, setting to null`);
+                  }
+                } else {
+                  // For other errors, set to null (no default religion)
+                  nameData.religionId = null;
+                  console.log(`Row ${rowNumber}: Religion creation failed, setting to null`);
+                }
+              }
+              }
+            }
           }
         } else {
-          // If no religion provided, leave it null (database will use default)
-          console.log(`Row ${rowNumber}: No religion provided, using database default`);
-          nameData.religionId = null; // Let database handle the default
+          // If no religion provided in CSV, set to null (no default religion)
+          nameData.religionId = null;
+          console.log(`Row ${rowNumber}: No religion provided in CSV, setting to null`);
+        }
+        
+        console.log(`Row ${rowNumber}: Final religionId: ${nameData.religionId}`);
+                // ========== ORIGIN HANDLING - START ==========
+        // Handle origin mapping - similar to religion logic
+        const originValue = nameData.originId;
+        console.log(`Row ${rowNumber}: Origin value from CSV: "${originValue}" (type: ${typeof originValue})`);
+
+        if (originValue && String(originValue).trim() !== '') {
+          const trimmedOrigin = String(originValue).trim();
+          
+          // If it's a number, use it as origin ID
+          if (!isNaN(trimmedOrigin) && trimmedOrigin !== '' && !isNaN(parseInt(trimmedOrigin))) {
+            const originIdInt = parseInt(trimmedOrigin);
+            // Verify origin exists
+            const verifyOrigin = await query('SELECT id FROM origins WHERE id = $1 AND "isActive" = true', [originIdInt]);
+            if (verifyOrigin.rows.length > 0) {
+              nameData.originId = originIdInt;
+              console.log(`Row ${rowNumber}: Using origin ID from CSV: ${nameData.originId}`);
+            } else {
+              console.log(`Row ${rowNumber}: Origin ID ${originIdInt} not found in database, setting to null`);
+              nameData.originId = null;
+            }
+          } else {
+            // If it's a string (origin name), find exact match in database
+            const originLower = trimmedOrigin.toLowerCase();
+            console.log(`Row ${rowNumber}: Looking for origin by name: "${trimmedOrigin}" (lowercase: "${originLower}")`);
+            
+            // Check in pre-fetched origins first (active ones)
+            if (existingOrigins.has(originLower)) {
+              const originId = existingOrigins.get(originLower);
+              // Check if it's inactive, if so reactivate it
+              if (inactiveOrigins.has(originLower)) {
+                await query('UPDATE origins SET "isActive" = true WHERE id = $1', [originId]);
+                inactiveOrigins.delete(originLower);
+                console.log(`Row ${rowNumber}: Reactivated inactive origin: "${trimmedOrigin}" (ID: ${originId})`);
+              }
+              nameData.originId = originId;
+              console.log(`Row ${rowNumber}: Origin found in pre-fetched list: "${trimmedOrigin}" (ID: ${nameData.originId})`);
+            } else if (newlyCreatedOrigins.has(originLower)) {
+              nameData.originId = newlyCreatedOrigins.get(originLower);
+              console.log(`Row ${rowNumber}: Origin found in newly created list: "${trimmedOrigin}" (ID: ${nameData.originId})`);
+            } else {
+              // Not in cache, check database (check both active and inactive)
+              const originResult = await query(
+                'SELECT id, name, "isActive" FROM origins WHERE LOWER(name) = LOWER($1)',
+                [trimmedOrigin]
+              );
+              
+              if (originResult.rows.length > 0) {
+                // Found in database
+                const origin = originResult.rows[0];
+                nameData.originId = origin.id;
+                
+                // If inactive, reactivate it
+                if (!origin.isActive) {
+                  await query('UPDATE origins SET "isActive" = true WHERE id = $1', [origin.id]);
+                  console.log(`Row ${rowNumber}: Reactivated inactive origin: "${origin.name}" (ID: ${origin.id})`);
+                }
+                
+                // Add to cache
+                existingOrigins.set(originLower, nameData.originId);
+                console.log(`Row ${rowNumber}: Origin found in database: "${origin.name}" (ID: ${nameData.originId})`);
+              } else {
+                // Not found, create new origin
+                try {
+                  console.log(`Row ${rowNumber}: Origin "${trimmedOrigin}" not found, creating new origin...`);
+                  
+                  if (!trimmedOrigin || trimmedOrigin.length === 0) {
+                    throw new Error('Origin name cannot be empty');
+                  }
+                  
+                  if (trimmedOrigin.length > 50) {
+                    throw new Error('Origin name cannot exceed 50 characters');
+                  }
+                  
+                  // Check if it exists (including inactive)
+                  const checkAgain = await query(
+                    'SELECT id, name, "isActive" FROM origins WHERE LOWER(name) = LOWER($1)',
+                    [trimmedOrigin]
+                  );
+                  
+                  if (checkAgain.rows.length > 0) {
+                    const origin = checkAgain.rows[0];
+                    nameData.originId = origin.id;
+                    
+                    // If inactive, reactivate it
+                    if (!origin.isActive) {
+                      await query('UPDATE origins SET "isActive" = true WHERE id = $1', [origin.id]);
+                      console.log(`Row ${rowNumber}: Reactivated inactive origin: "${origin.name}" (ID: ${origin.id})`);
+                    }
+                    
+                    // Add to cache
+                    existingOrigins.set(originLower, nameData.originId);
+                    console.log(`Row ${rowNumber}: Origin found after recheck: "${origin.name}" (ID: ${nameData.originId})`);
+                  } else {
+                    const createResult = await query(
+                      'INSERT INTO origins (name, "createdBy", "isActive") VALUES ($1, $2, $3) RETURNING id, name',
+                      [trimmedOrigin, null, true]
+                    );
+                    
+                    nameData.originId = createResult.rows[0].id;
+                    // Add to both caches
+                    existingOrigins.set(originLower, nameData.originId);
+                    newlyCreatedOrigins.set(originLower, nameData.originId);
+                    console.log(`Row ${rowNumber}: ✅ Created new origin "${createResult.rows[0].name}" (ID: ${nameData.originId})`);
+                  }
+                } catch (createError) {
+                  console.error(`Row ${rowNumber}: Error creating origin "${trimmedOrigin}":`, createError);
+                  
+                  // If duplicate error, try to find it again
+                  if (createError.code === '23505' || createError.message.includes('duplicate') || createError.message.includes('unique')) {
+                    console.log(`Row ${rowNumber}: Duplicate origin detected, finding existing origin...`);
+                    try {
+                      const duplicateCheck = await query(
+                        'SELECT id, name, "isActive" FROM origins WHERE LOWER(name) = LOWER($1)',
+                        [trimmedOrigin]
+                      );
+                      if (duplicateCheck.rows.length > 0) {
+                        const origin = duplicateCheck.rows[0];
+                        nameData.originId = origin.id;
+                        
+                        if (!origin.isActive) {
+                          await query('UPDATE origins SET "isActive" = true WHERE id = $1', [origin.id]);
+                          console.log(`Row ${rowNumber}: Reactivated inactive duplicate origin: "${origin.name}" (ID: ${origin.id})`);
+                        }
+                        
+                        existingOrigins.set(originLower, nameData.originId);
+                        console.log(`Row ${rowNumber}: Found duplicate origin: "${origin.name}" (ID: ${nameData.originId})`);
+                      } else {
+                        nameData.originId = null;
+                        console.log(`Row ${rowNumber}: Could not find or create origin, setting to null`);
+                      }
+                    } catch (findError) {
+                      console.error(`Row ${rowNumber}: Could not find duplicate origin:`, findError);
+                      nameData.originId = null;
+                    }
+                  } else {
+                    nameData.originId = null;
+                    console.log(`Row ${rowNumber}: Origin creation failed, setting to null`);
+                  }
+                }
+              }
+            }
+          }
+        } else {
+          // If no origin provided in CSV, set to null
+          nameData.originId = null;
+          console.log(`Row ${rowNumber}: No origin provided in CSV, setting to null`);
         }
 
+        console.log(`Row ${rowNumber}: Final originId: ${nameData.originId}`);
+        // ========== ORIGIN HANDLING - END ==========
         // Check for duplicates using pre-fetched names (much faster)
         console.log(`Row ${rowNumber}: Checking for duplicates for "${nameData.name}"`);
         const nameLower = nameData.name.toLowerCase();
@@ -335,10 +751,10 @@ exports.processImport = async (req, res) => {
             try {
               const updateResult = await query(`
                 UPDATE names 
-                SET description = $1, "religionId" = $2, gender = $3, "updatedAt" = CURRENT_TIMESTAMP
-                WHERE LOWER(name) = LOWER($4)
+                SET description = $1, "religionId" = $2, "originId" = $3, gender = $4, "updatedAt" = CURRENT_TIMESTAMP
+                WHERE LOWER(name) = LOWER($5)
                 RETURNING id
-              `, [nameData.description || '', nameData.religionId, nameData.gender, nameData.name]);
+              `, [nameData.description || '', nameData.religionId, nameData.originId, nameData.gender, nameData.name]);
               
               console.log('Name updated successfully:', updateResult.rows[0]);
               results.successful.push({ 
@@ -367,20 +783,41 @@ exports.processImport = async (req, res) => {
           }
         }
 
+        // Validate gender before insert
+        const validGenders = ['male', 'female', 'unisex'];
+        if (!validGenders.includes(nameData.gender)) {
+          console.log(`Row ${rowNumber}: Invalid gender "${nameData.gender}", defaulting to unisex`);
+          nameData.gender = 'unisex';
+        }
+        
         // Insert the name
-        console.log('Inserting name:', nameData); // Debug log
+        console.log(`Row ${rowNumber}: Inserting name with data:`, {
+          name: nameData.name,
+          description: nameData.description,
+          religionId: nameData.religionId,
+          originId: nameData.originId,
+          gender: nameData.gender
+        });
+        
         const insertResult = await query(`
-          INSERT INTO names (name, description, "religionId", gender)
-          VALUES ($1, $2, $3, $4)
-          RETURNING id
+          INSERT INTO names (name, description, "religionId", "originId", gender)
+          VALUES ($1, $2, $3, $4, $5)
+          RETURNING id, name, "religionId", "originId", gender
         `, [
           nameData.name,
           nameData.description || '',
-          nameData.religionId,
+          nameData.religionId, // This can be null if no religion
+          nameData.originId, // This can be null if no origin
           nameData.gender
         ]);
 
-        console.log('Name inserted successfully:', insertResult.rows[0]); // Debug log
+        console.log(`Row ${rowNumber}: ✅ Name inserted successfully:`, {
+          id: insertResult.rows[0].id,
+          name: insertResult.rows[0].name,
+          religionId: insertResult.rows[0].religionId,
+          originId: insertResult.rows[0].originId,
+          gender: insertResult.rows[0].gender
+        });
         results.successful.push({
           row: rowNumber,
           name: nameData.name,
@@ -389,23 +826,55 @@ exports.processImport = async (req, res) => {
 
       } catch (error) {
         console.error(`Error processing row ${rowNumber}:`, error);
+        console.error(`Error details:`, {
+          message: error.message,
+          stack: error.stack,
+          code: error.code,
+          detail: error.detail,
+          constraint: error.constraint
+        });
+        
+        // Try to get the name from the row, with fallback
+        let errorName = 'Unknown';
+        try {
+          if (columnMapping.name) {
+            errorName = row[columnMapping.name] || 
+                       row[columnMapping.name.toLowerCase()] || 
+                       row[columnMapping.name.toUpperCase()] || 
+                       'Unknown';
+          }
+        } catch (nameError) {
+          // If we can't get the name, just use Unknown
+        }
+        
         results.failed.push({
           row: rowNumber,
-          name: row[columnMapping.name] || 'Unknown',
-          error: error.message
+          name: errorName,
+          error: error.message || 'Unknown error',
+          details: error.detail || error.constraint || undefined
         });
       }
+      }
+      
+      // Log batch completion
+      console.log(`Batch ${batchIndex + 1}/${totalBatches} completed. Successful: ${results.successful.length}, Failed: ${results.failed.length}, Skipped: ${results.skipped.length}`);
+      
+      // Add a small delay between batches to prevent overwhelming the database
+      if (batchIndex < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, 10)); // 10ms delay between batches (reduced for better performance)
+      }
     }
-    
-    // Log batch completion
-    console.log(`Batch ${batchIndex + 1}/${totalBatches} completed. Successful: ${results.successful.length}, Failed: ${results.failed.length}, Skipped: ${results.skipped.length}`);
-    
-    // Add a small delay between batches to prevent overwhelming the database
-    if (batchIndex < totalBatches - 1) {
-      await new Promise(resolve => setTimeout(resolve, 10)); // 10ms delay between batches (reduced for better performance)
-    }
-  }
 
+    // Log summary of newly created religions
+    if (newlyCreatedReligions.size > 0) {
+      console.log(`\n✅ CSV Import Summary - Created ${newlyCreatedReligions.size} new religions:`);
+      newlyCreatedReligions.forEach((id, name) => {
+        console.log(`   - ${name} (ID: ${id})`);
+      });
+    } else {
+      console.log(`\n📊 CSV Import Summary - No new religions created (all religions already existed)`);
+    }
+    
     // Update import record
     await query(`
       UPDATE csv_imports 
@@ -431,22 +900,34 @@ exports.processImport = async (req, res) => {
           failed: results.failed.length,
           skipped: results.skipped.length
         },
-        details: results
+        details: results,
+        religionsCreated: newlyCreatedReligions.size
       }
     });
 
   } catch (error) {
     console.error('CSV import error:', error);
+    console.error('CSV import error details:', {
+      message: error.message,
+      stack: error.stack,
+      code: error.code,
+      detail: error.detail,
+      constraint: error.constraint,
+      table: error.table,
+      column: error.column
+    });
     
     // Update import record with error status if importId exists
     if (importId) {
       try {
+        const errorMessage = error.message || 'Unknown error';
+        const errorDetail = error.detail || error.stack || '';
         await query(`
           UPDATE csv_imports 
           SET "importStatus" = 'failed', "completedAt" = CURRENT_TIMESTAMP,
               "errorLog" = $1
           WHERE id = $2
-        `, [error.message, importId]);
+        `, [JSON.stringify({ message: errorMessage, detail: errorDetail }), importId]);
       } catch (updateError) {
         console.error('Error updating import record:', updateError);
       }
@@ -454,7 +935,8 @@ exports.processImport = async (req, res) => {
     
     res.status(500).json({
       success: false,
-      error: `Error processing CSV import: ${error.message}`
+      error: `Error processing CSV import: ${error.message || 'Unknown error'}`,
+      detail: error.detail || error.stack || undefined
     });
   }
 };

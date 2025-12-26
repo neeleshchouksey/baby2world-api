@@ -5,16 +5,20 @@ const path = require('path');
 const fs = require('fs');
 const auth = require('../middleware/auth.middleware');
 
-// Ensure uploads directory exists
-const uploadsDir = 'uploads/images/';
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+// Ensure uploads directories exist
+const uploadsImagesDir = 'uploads/images/';
+const uploadsPagesDir = 'uploads/pages/';
+if (!fs.existsSync(uploadsImagesDir)) {
+  fs.mkdirSync(uploadsImagesDir, { recursive: true });
+}
+if (!fs.existsSync(uploadsPagesDir)) {
+  fs.mkdirSync(uploadsPagesDir, { recursive: true });
 }
 
-// Configure multer for image uploads
+// Configure multer for image uploads (general images)
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, uploadsDir);
+    cb(null, uploadsImagesDir);
   },
   filename: function (req, file, cb) {
     // Generate unique filename: timestamp-originalname
@@ -25,30 +29,48 @@ const storage = multer.diskStorage({
   }
 });
 
+// Configure multer for page images (CKEditor uploads)
+const pagesStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadsPagesDir);
+  },
+  filename: function (req, file, cb) {
+    // Generate unique filename: timestamp-originalname
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const ext = path.extname(file.originalname);
+    const name = path.basename(file.originalname, ext);
+    cb(null, `${uniqueSuffix}-${name}${ext}`);
+  }
+});
+
+// File filter function
+const imageFileFilter = function (req, file, cb) {
+  // Accept only image files
+  const filetypes = /jpeg|jpg|png|gif|webp|svg/;
+  const mimetype = filetypes.test(file.mimetype);
+  const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+
+  if (mimetype && extname) {
+    return cb(null, true);
+  } else {
+    const errorMsg = `Only image files are allowed (jpeg, jpg, png, gif, webp, svg). Received: ${file.mimetype || 'unknown type'}, extension: ${path.extname(file.originalname)}`;
+    console.error('File upload rejected:', errorMsg);
+    cb(new Error(errorMsg));
+  }
+};
+
 const upload = multer({
   storage: storage,
-  fileFilter: function (req, file, cb) {
-    // Accept only image files
-    const filetypes = /jpeg|jpg|png|gif|webp|svg/;
-    const mimetype = filetypes.test(file.mimetype);
-    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+  fileFilter: imageFileFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  }
+});
 
-    // Log for debugging
-    console.log('File upload attempt:', {
-      originalname: file.originalname,
-      mimetype: file.mimetype,
-      mimetypeMatch: mimetype,
-      extnameMatch: extname
-    });
-
-    if (mimetype && extname) {
-      return cb(null, true);
-    } else {
-      const errorMsg = `Only image files are allowed (jpeg, jpg, png, gif, webp, svg). Received: ${file.mimetype || 'unknown type'}, extension: ${path.extname(file.originalname)}`;
-      console.error('File upload rejected:', errorMsg);
-      cb(new Error(errorMsg));
-    }
-  },
+// Multer for pages (CKEditor uploads)
+const uploadPages = multer({
+  storage: pagesStorage,
+  fileFilter: imageFileFilter,
   limits: {
     fileSize: 10 * 1024 * 1024 // 10MB limit
   }
@@ -98,6 +120,32 @@ router.post('/image', auth, (req, res, next) => {
     });
   } catch (error) {
     console.error('Image upload error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Error uploading image'
+    });
+  }
+});
+
+
+// CKEditor expects this exact format: { url: "/uploads/pages/filename.jpg" }
+router.post('/', auth, uploadPages.single('upload'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No image file uploaded'
+      });
+    }
+
+    // CKEditor expects: { url: "/uploads/pages/filename.jpg" }
+    const fileUrl = `/uploads/pages/${req.file.filename}`;
+    
+    res.json({
+      url: fileUrl
+    });
+  } catch (error) {
+    console.error('CKEditor image upload error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Error uploading image'

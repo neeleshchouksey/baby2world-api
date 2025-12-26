@@ -279,21 +279,37 @@ exports.getAllUsers = async (req, res) => {
     }
 
     // Filter by status if provided
+    // Default: show only active users (if no status filter)
+    // Options: 'active', 'inactive', 'deleted', 'all'
+    let statusFilterValue = null;
     if (req.query.status) {
-      const statusFilter = req.query.status === 'active' ? true : req.query.status === 'inactive' ? false : null;
-      if (statusFilter !== null) {
-        if (whereClause) {
-          whereClause += ` AND COALESCE("isActive", true) = $${paramCount}`;
-        } else {
-          whereClause = `WHERE COALESCE("isActive", true) = $${paramCount}`;
-        }
-        queryParams.push(statusFilter);
-        paramCount++;
+      if (req.query.status === 'active') {
+        statusFilterValue = true;
+      } else if (req.query.status === 'inactive' || req.query.status === 'deleted') {
+        // Both 'inactive' and 'deleted' mean isActive = false
+        statusFilterValue = false;
       }
+      // If status is 'all', statusFilterValue remains null (show all)
+    } else {
+      // No status filter provided, default to active only
+      statusFilterValue = true;
+    }
+    
+    // Apply status filter if not 'all'
+    if (statusFilterValue !== null) {
+      if (whereClause) {
+        whereClause += ` AND COALESCE("isActive", true) = $${paramCount}`;
+      } else {
+        whereClause = `WHERE COALESCE("isActive", true) = $${paramCount}`;
+      }
+      queryParams.push(statusFilterValue);
+      paramCount++;
     }
 
     // Build count query with same filters
-    const countWhereClause = whereClause || '';
+    // If status filter is 'all' or not provided, count all users
+    let countWhereClause = whereClause || '';
+    // Status filter is already applied in whereClause if provided
     const countParams = [...queryParams];
     
     // Get total count
@@ -302,10 +318,13 @@ exports.getAllUsers = async (req, res) => {
     const totalUsers = parseInt(countResult.rows[0].count);
 
     // Get users with pagination
+    // Status filter is already applied in whereClause above
+    let finalWhereClause = whereClause || '';
+    
     const usersQuery = `
       SELECT id, name, email, role, "createdAt", "updatedAt", picture, COALESCE("isActive", true) as "isActive"
       FROM users 
-      ${whereClause || ''}
+      ${finalWhereClause}
       ${orderBy}
       LIMIT $${paramCount} OFFSET $${paramCount + 1}
     `;
@@ -372,17 +391,12 @@ exports.deleteUser = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Cannot delete your own account' });
     }
 
-    // Delete user's favorites first
-    await query('DELETE FROM user_favorite_names WHERE "userId" = $1', [userIdInt]);
-    await query('DELETE FROM user_favorite_god_names WHERE "userId" = $1', [userIdInt]);
-    await query('DELETE FROM user_favorite_nicknames WHERE "userId" = $1', [userIdInt]);
-
-    // Delete the user
-    await query('DELETE FROM users WHERE id = $1', [userIdInt]);
+    // Soft delete - set isActive to false instead of hard delete
+    await query('UPDATE users SET "isActive" = false, "updatedAt" = CURRENT_TIMESTAMP WHERE id = $1', [userIdInt]);
 
     res.status(200).json({
       success: true,
-      message: 'User deleted successfully'
+      message: 'User deactivated successfully'
     });
 
   } catch (error) {

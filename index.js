@@ -23,7 +23,7 @@ const uploadRoutes = require('./routes/upload.routes');
 const mediaRoutes = require('./routes/media.routes'); // 👈 ADD THIS
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT;
 const HOST = process.env.HOST || '0.0.0.0';
 
 // CORS Configuration - Environment based
@@ -98,7 +98,7 @@ app.get('/', (req, res) => {
 
 // Server start
 app.listen(PORT, HOST, () => {
-  console.log(`🚀 Server is running on http://${HOST}:${PORT}`);
+  console.log(`🚀 Server is running on http://${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 CORS Origins: ${corsOrigins.join(', ')}`);
   if (process.env.NODE_ENV !== 'production') {

@@ -20,6 +20,7 @@ const csvImportRoutes = require('./routes/csvImport.routes');
 const termsAndConditionsRoutes = require('./routes/termsAndConditions.routes');
 const pageRoutes = require('./routes/page.routes');
 const uploadRoutes = require('./routes/upload.routes');
+const mediaRoutes = require('./routes/media.routes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -86,6 +87,7 @@ app.use('/api/csv-import', csvImportRoutes);
 app.use('/api/terms-and-conditions', termsAndConditionsRoutes);
 app.use('/api/pages', pageRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/media', mediaRoutes);
 
 // Serve uploaded images statically
 app.use('/uploads', express.static('uploads'));

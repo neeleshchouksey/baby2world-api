@@ -30,6 +30,31 @@ const getPageBySlug = async (req, res) => {
 };
 
 /**
+ * Get all active Pages (Public - no auth required)
+ * For navbar dropdown
+ */
+const getActivePages = async (req, res) => {
+  try {
+    const filterQuery = { isActive: true };
+    const sort = { title: 1 }; // Sort by title ascending
+    
+    // Get all active pages (no pagination limit for navbar)
+    const pages = await Page.find(filterQuery, { page: 1, limit: 1000, sort });
+    
+    res.json({
+      success: true,
+      data: pages
+    });
+  } catch (error) {
+    console.error('Error fetching active pages:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch active pages'
+    });
+  }
+};
+
+/**
  * Get all Pages with pagination (Admin only)
  */
 const getAllPages = async (req, res) => {
@@ -345,6 +370,7 @@ const deletePage = async (req, res) => {
 
 module.exports = {
   getPageBySlug,
+  getActivePages,
   getAllPages,
   getPageById,
   createPage,

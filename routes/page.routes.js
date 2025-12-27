@@ -3,6 +3,7 @@ const router = express.Router();
 const auth = require('../middleware/auth.middleware');
 const {
   getPageBySlug,
+  getActivePages,
   getAllPages,
   getPageById,
   createPage,
@@ -10,8 +11,9 @@ const {
   deletePage
 } = require('../controllers/page.controller');
 
-// Public route - anyone can view active page by slug
+// Public routes - anyone can access
 router.get('/slug/:slug', getPageBySlug);
+router.get('/active', getActivePages);
 
 // Admin routes - require authentication
 router.get('/', auth, getAllPages);

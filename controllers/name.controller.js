@@ -1,11 +1,12 @@
 const Name = require('../models/name.model');
 const Religion = require('../models/religion.model');
+const Origin = require('../models/origin.model');
 
 // Get all names with filters and pagination
 exports.getAllNames = async (req, res) => {
   try {
     // Get filters and pagination options from frontend
-    const { gender, letter, religionId, search } = req.query;
+    const { gender, letter, religionId, originId, search } = req.query;
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 15;
 
@@ -50,6 +51,32 @@ exports.getAllNames = async (req, res) => {
       }
     }
 
+    // Origin filter: accept UUID, serial number, or name
+    if (originId) {
+      // Check if it's a UUID format
+      if (uuidRegex.test(originId)) {
+        filterQuery.originId = originId;
+      } 
+      // Check if it's a numeric ID (serial number)
+      else if (!isNaN(originId) && originId > 0) {
+        filterQuery.originId = originId;
+      } 
+      // Try resolving by origin name
+      else {
+        try {
+          const origin = await Origin.findOne({ name: { $regex: `%${originId}%` }, isActive: true });
+          if (origin) {
+            filterQuery.originId = origin.id;
+          } else {
+            // If no origin found by name, avoid setting an invalid filter
+            filterQuery.originId = undefined;
+          }
+        } catch (error) {
+          // Ignore lookup errors; proceed without origin filter
+        }
+      }
+    }
+
     if (search) {
       filterQuery.search = search;
     } else if (letter) {
@@ -86,6 +113,12 @@ exports.getAllNames = async (req, res) => {
     if (filterQuery.religionId) {
       whereClause += ` AND n."religionId" = $${paramIndex}`;
       params.push(filterQuery.religionId);
+      paramIndex++;
+    }
+    
+    if (filterQuery.originId) {
+      whereClause += ` AND n."originId" = $${paramIndex}`;
+      params.push(filterQuery.originId);
       paramIndex++;
     }
     
